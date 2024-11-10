@@ -1,2 +1,8 @@
 .idea
 .env
+.venv
+__pycache__
+archive
+tweets_json
+twitter*
+.DS_Store

@@ -1,17 +1,16 @@
 import json
 import os
-import subprocess
 from collections import defaultdict
-from datetime import datetime
 
-# Paths to files and Day One CLI
+import functions
+from dayone_agent import DayOneEntryCreator
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
 TWEET_ARCHIVE_PATH = os.path.join(script_dir, "archive", "data", "tweets.js")
-DAYONE_PATH = "/usr/local/bin/dayone2"
 
-# Journals
-REPLY_JOURNAL = "Twitter Replies"
-TWEET_JOURNAL = "Tweets"
+# SO this loads ALL tweets from big JSON file
+# And then combines some tweets into threads
+# Then for each thread it calls either of DayOneEntryCreator functions... sounds stupid?
 
 
 def load_tweets(tweet_archive_path):
@@ -38,65 +37,6 @@ def load_tweets(tweet_archive_path):
             tweets = []
 
     return tweets
-
-
-def create_dayone_entry(tweet, journal_name):
-    """Formats and adds a tweet as a Day One entry in the specified journal."""
-    # Extract relevant tweet data
-    tweet_content = tweet["tweet"].get("full_text", "")
-    timestamp = tweet["tweet"].get("created_at", "")
-    tweet_date = datetime.strptime(timestamp, "%a %b %d %H:%M:%S %z %Y")
-
-    # Day One entry command
-    dayone_cmd = [
-        DAYONE_PATH,
-        "new",
-        "--date",
-        tweet_date.isoformat(),
-        "--entry",
-        tweet_content,
-        "--journal",
-        journal_name,
-    ]
-
-    try:
-        # Run the command to create a new entry
-        # subprocess.run(dayone_cmd, check=True)
-        # print(f"Added tweet from {tweet_date} to {journal_name} journal")
-        print(tweet_content)
-    except subprocess.CalledProcessError as e:
-        print(f"Error adding tweet from {tweet_date}: {e}")
-
-
-def create_dayone_entry_for_thread(thread, journal_name):
-    """Combines tweets in a thread and creates a Day One entry."""
-    combined_text = "\n\n".join(
-        f"{tweet['tweet']['full_text']} - {tweet['tweet']['created_at']}"
-        for tweet in thread
-    )
-
-    # Use the date of the first tweet in the thread for Day One entry
-    first_tweet_date = datetime.strptime(
-        thread[0]["tweet"]["created_at"], "%a %b %d %H:%M:%S %z %Y"
-    )
-
-    dayone_cmd = [
-        DAYONE_PATH,
-        "new",
-        "--date",
-        first_tweet_date.isoformat(),
-        "--entry",
-        combined_text,
-        "--journal",
-        journal_name,
-    ]
-
-    try:
-        # subprocess.run(dayone_cmd, check=True)
-        # print(f"Added thread starting from {first_tweet_date} to {journal_name} journal")
-        print(combined_text + "\n" + "_______" + "\n")
-    except subprocess.CalledProcessError as e:
-        print(f"Error adding thread from {first_tweet_date}: {e}")
 
 
 def combine_threads(tweets):
@@ -156,9 +96,9 @@ def main():
 
         tweet_content = thread[0]["tweet"]["full_text"]
         if tweet_content.startswith("@"):
-            create_dayone_entry_for_thread(thread, REPLY_JOURNAL)
+            DayOneEntryCreator.create_reply(thread[0])
         else:
-            create_dayone_entry_for_thread(thread, TWEET_JOURNAL)
+            DayOneEntryCreator.create_thread(thread)
 
 
 if __name__ == "__main__":
