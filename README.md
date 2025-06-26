@@ -17,6 +17,8 @@ If you never used Day One:
 Notes:
 Polls are not supported
 
+IT'S VERY ADVISEABLE TO PAUSE SYNC
+
 Before using, please visit dayone://preferences and create a new journal
 
 If you're using a free version of Day One, only one attachment per post then!
