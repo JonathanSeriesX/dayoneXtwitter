@@ -24,9 +24,9 @@ def main():
     print(f"Found {len(tweets)} tweets in the archive.")
     for tweet in tweets:
         process_tweet_text_for_markdown_links(tweet)
-    print("Processed tweet texts for Markdown links.")
+    print("Expanded t.co links inside of tweets.")
     threads = combine_threads(tweets)
-    print(f"Converted it into {len(threads)} threads.")
+    print(f"Converted those tweets into {len(threads)} threads.")
 
     random.shuffle(threads)
 
@@ -45,10 +45,17 @@ def main():
         for j, tweet_in_thread in enumerate(thread):
             indent = "  " if j > 0 else ""
             print(f"{indent} L {tweet_in_thread['tweet']['full_text']}")
-            if int(tweet_in_thread["tweet"]["favorite_count"]) > 0:
-                print(f"{indent}   Likes: {tweet_in_thread['tweet']['favorite_count']}")
-            if int(tweet_in_thread["tweet"]["retweet_count"]) > 0:
-                print(f"{indent}   Retweets: {tweet_in_thread['tweet']['retweet_count']}")
+            likes = int(tweet_in_thread["tweet"]["favorite_count"])
+            rts = int(tweet_in_thread["tweet"]["retweet_count"])
+
+            parts = []
+            if likes > 0:
+                parts.append(f"Likes: {likes}⭐️")
+            if rts > 0:
+                parts.append(f"Retweets: {rts}🔁")
+
+            if parts:
+                print(f"{indent}   " + "   ".join(parts))
             if tweet_in_thread["tweet"]["entities"].get("hashtags"):
                 for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
                     print(f"{indent}   Hashtag: #{hashtag['text']}")
@@ -103,19 +110,31 @@ def main():
 
         first_tweet_in_thread = thread[0]['tweet'] # Define first_tweet_in_thread here
 
+        # Add likes, retweets, and original tweet link
+        tweet_url = f"https://twitter.com/{CURRENT_USERNAME}/status/{first_tweet_in_thread['id_str']}"
+        metrics = []
+        likes = int(first_tweet_in_thread["favorite_count"])
+        rts = int(first_tweet_in_thread["retweet_count"])
+
         # Add reply link if applicable
         if first_tweet_in_thread.get("in_reply_to_status_id_str"):
             reply_to_tweet_id = first_tweet_in_thread["in_reply_to_status_id_str"]
             reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
-            entry_text += f"In response to: [{reply_to_tweet_id}]({reply_to_url})\n\n"
+            entry_text += f"[In response to]({reply_to_url})\n"
 
-        # Add likes, retweets, and original tweet link
-        tweet_url = f"https://twitter.com/{CURRENT_USERNAME}/status/{first_tweet_in_thread['id_str']}"
-        if int(first_tweet_in_thread["favorite_count"]) > 0:
-            entry_text += f"[Likes: {first_tweet_in_thread['favorite_count']}]({tweet_url}/likes)\n"
-        if int(first_tweet_in_thread["retweet_count"]) > 0:
-            entry_text += f"[Retweets: {first_tweet_in_thread['retweet_count']}]({tweet_url}/retweets)\n"
-        entry_text += f"[Original Tweet]({tweet_url})\n"
+        if likes > 0:
+            metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
+        if rts > 0:
+            metrics.append(f"[Retweets: {rts}]({tweet_url}/retweets) 🔁")
+
+        # if we have at least one, join on a space (or two) and add a single newline
+        if metrics:
+            entry_text += "   ".join(metrics) + "\n"
+
+
+
+
+        entry_text += f"_______\n[Open on twitter.com]({tweet_url})\n"
 
         # Call add_post to create the Day One entry
         add_post(

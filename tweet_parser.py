@@ -55,13 +55,19 @@ def get_thread_category(thread):
 
         if len(mentions) > 1:
             if len(mentions) == 2:
-                return f"My conversation with @{mentions[0]["screen_name"]} and @{mentions[1]["screen_name"]}"
+                return f"My reply to {mentions[0]["name"]} and {mentions[1]["name"]}"
             return (
-                    "My conversation with "
-                    + ", ".join(f"@{m['screen_name']}" for m in mentions[:-1])
-                    + f", and @{mentions[-1]['screen_name']}"
+                    "My reply to "
+                    + ", ".join(f"{m['name']}" for m in mentions[:-1])
+                    + f", and {mentions[-1]['name']}"
             )
-        return f"My reply to @{reply_to_user}"
+        # Find the name of the user being replied to
+        reply_to_name = reply_to_user # Default to screen_name if name not found
+        for mention in mentions:
+            if mention['screen_name'] == reply_to_user:
+                reply_to_name = mention['name']
+                break
+        return f"My reply to {reply_to_name}"
 
     # If it's not a thread, retweet, or reply, it's a standalone tweet.
     return "My tweet"
