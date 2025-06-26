@@ -1,6 +1,6 @@
 import requests
 import json
-from config import OLLAMA_API_URL, OLLAMA_MODEL_NAME
+from config import OLLAMA_API_URL, OLLAMA_MODEL_NAME, OLLAMA_PROMPT
 
 def get_tweet_summary(tweet_text: str) -> str:
     """
@@ -16,7 +16,7 @@ def get_tweet_summary(tweet_text: str) -> str:
     ollama_url = OLLAMA_API_URL
     model_name = OLLAMA_MODEL_NAME
 
-    prompt = f"Figure out, what subject this tweet is about. Only output one or two words in small letters, nothing else.\n\nTweet: {tweet_text}\nSummary:"
+    prompt = f"{OLLAMA_PROMPT}\n\nTweet: {tweet_text}\nSummary:"
 
     headers = {"Content-Type": "application/json"}
     data = {
