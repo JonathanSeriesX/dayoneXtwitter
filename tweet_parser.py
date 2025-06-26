@@ -22,7 +22,19 @@ def get_thread_category(thread):
 
     is_retweet = first_tweet["full_text"].startswith("RT @")
     is_reply = first_tweet.get("in_reply_to_status_id_str") is not None
-    is_quote_tweet = first_tweet.get("quoted_status_id_str") is not None
+
+    # Check for Twitter/X links in urls entities that are NOT media URLs
+    has_non_media_twitter_link = False
+    media_urls_tco = {m.get('url') for m in first_tweet.get('extended_entities', {}).get('media', [])}
+    if not media_urls_tco:
+        media_urls_tco = {m.get('url') for m in first_tweet.get('entities', {}).get('media', [])}
+
+    for url_entity in first_tweet.get("entities", {}).get("urls", []):
+        expanded_url = url_entity.get("expanded_url")
+        tco_url = url_entity.get("url")
+        if expanded_url and ("twitter.com" in expanded_url or "x.com" in expanded_url) and tco_url not in media_urls_tco:
+            has_non_media_twitter_link = True
+            break
 
     # A list of more than one tweet is always a thread you created.
     if len(thread) > 1:
@@ -32,7 +44,7 @@ def get_thread_category(thread):
     if is_retweet:
         return "My retweet"
 
-    if is_quote_tweet and not is_reply:
+    if has_non_media_twitter_link and not is_reply:
         return "My quote tweet"
 
     if is_reply:

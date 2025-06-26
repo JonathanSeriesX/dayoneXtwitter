@@ -34,103 +34,98 @@ def main():
         if i > 60:
             break
 
-        has_interesting_content = False
+        category = get_thread_category(thread)
+        if len(thread) > 1:
+            header = f"--- {category} ({len(thread)} tweets) ---"
+        else:
+            header = f"--- {category} ---"
+
+        print(f"\n{header}")
+
+        for j, tweet_in_thread in enumerate(thread):
+            indent = "  " if j > 0 else ""
+            print(f"{indent} L {tweet_in_thread['tweet']['full_text']}")
+            if int(tweet_in_thread["tweet"]["favorite_count"]) > 0:
+                print(f"{indent}   Likes: {tweet_in_thread['tweet']['favorite_count']}")
+            if int(tweet_in_thread["tweet"]["retweet_count"]) > 0:
+                print(f"{indent}   Retweets: {tweet_in_thread['tweet']['retweet_count']}")
+            if tweet_in_thread["tweet"]["entities"].get("hashtags"):
+                for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
+                    print(f"{indent}   Hashtag: #{hashtag['text']}")
+            if tweet_in_thread["tweet"].get("coordinates") and tweet_in_thread["tweet"]["coordinates"].get("coordinates"):
+                longitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][0]
+                latitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][1]
+                print(f"{indent}   Location: Longitude {longitude}, Latitude {latitude}")
+            if tweet_in_thread["tweet"]["media_files"]:
+                for media_file in tweet_in_thread["tweet"]["media_files"]:
+                    print(f"{indent}   Media: {media_file}")
+
+        # Prepare data for Day One entry
+        entry_text = ""
+        entry_tags = []
+        entry_media_files = []
+        entry_date_time = None
+        entry_coordinate = None
+
+        # Combine all tweet texts in the thread for the entry body
         for tweet_in_thread in thread:
-            if (
-                int(tweet_in_thread["tweet"]["favorite_count"]) > 0
-                or int(tweet_in_thread["tweet"]["retweet_count"]) > 0
-                or tweet_in_thread["tweet"]["entities"].get("hashtags")
-                or tweet_in_thread["tweet"]["media_files"]
-            ):
-                has_interesting_content = True
-                break  # No need to check further tweets in this thread
+            entry_text += tweet_in_thread['tweet']['full_text'] + "\n\n"
 
-        if has_interesting_content:
-            category = get_thread_category(thread)
-            if len(thread) > 1:
-                header = f"--- {category} ({len(thread)} tweets) ---"
-            else:
-                header = f"--- {category} ---"
+            # Collect hashtags
+            if tweet_in_thread["tweet"]["entities"].get("hashtags"):
+                for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
+                    entry_tags.append(hashtag['text'])
 
-            print(f"\n{header}")
+            # Collect media files
+            if tweet_in_thread["tweet"]["media_files"]:
+                for media_file in tweet_in_thread["tweet"]["media_files"]:
+                    entry_media_files.append(media_file)
 
-            for j, tweet_in_thread in enumerate(thread):
-                indent = "  " if j > 0 else ""
-                print(f"{indent} L {tweet_in_thread['tweet']['full_text']}")
-                if int(tweet_in_thread["tweet"]["favorite_count"]) > 0:
-                    print(f"{indent}   Likes: {tweet_in_thread['tweet']['favorite_count']}")
-                if int(tweet_in_thread["tweet"]["retweet_count"]) > 0:
-                    print(f"{indent}   Retweets: {tweet_in_thread['tweet']['retweet_count']}")
-                if tweet_in_thread["tweet"]["entities"].get("hashtags"):
-                    for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
-                        print(f"{indent}   Hashtag: #{hashtag['text']}")
-                if tweet_in_thread["tweet"].get("coordinates") and tweet_in_thread["tweet"]["coordinates"].get("coordinates"):
-                    longitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][0]
-                    latitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][1]
-                    print(f"{indent}   Location: Longitude {longitude}, Latitude {latitude}")
-                if tweet_in_thread["tweet"]["media_files"]:
-                    for media_file in tweet_in_thread["tweet"]["media_files"]:
-                        print(f"{indent}   Media: {media_file}")
+            # Get date/time from the first tweet in the thread
+            if not entry_date_time:
+                # Assuming 'created_at' is in a format that datetime.strptime can parse
+                # Example: "Wed Oct 10 20:19:24 +0000 2018"
+                try:
+                    entry_date_time = datetime.strptime(tweet_in_thread['tweet']['created_at'], "%a %b %d %H:%M:%S %z %Y")
+                except ValueError:
+                    print(f"Warning: Could not parse date {tweet_in_thread['tweet']['created_at']}")
+                    entry_date_time = None
 
-            # Prepare data for Day One entry
-            entry_text = ""
-            entry_tags = []
-            entry_media_files = []
-            entry_date_time = None
-            entry_coordinate = None
+            # Get coordinates from the first tweet in the thread that has them
+            if not entry_coordinate and tweet_in_thread["tweet"].get("coordinates") and tweet_in_thread["tweet"]["coordinates"].get("coordinates"):
+                longitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][0]
+                latitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][1]
+                entry_coordinate = (latitude, longitude)
 
-            # Combine all tweet texts in the thread for the entry body
-            for tweet_in_thread in thread:
-                entry_text += tweet_in_thread['tweet']['full_text'] + "\n\n"
+        # Add a title to the entry text
+        title = f"{category}"
+        entry_text = f"# {title}\n\n{entry_text}"
 
-                # Collect hashtags
-                if tweet_in_thread["tweet"]["entities"].get("hashtags"):
-                    for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
-                        entry_tags.append(hashtag['text'])
+        first_tweet_in_thread = thread[0]['tweet'] # Define first_tweet_in_thread here
 
-                # Collect media files
-                if tweet_in_thread["tweet"]["media_files"]:
-                    for media_file in tweet_in_thread["tweet"]["media_files"]:
-                        entry_media_files.append(media_file)
+        # Add reply link if applicable
+        if first_tweet_in_thread.get("in_reply_to_status_id_str"):
+            reply_to_tweet_id = first_tweet_in_thread["in_reply_to_status_id_str"]
+            reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
+            entry_text += f"In response to: [{reply_to_tweet_id}]({reply_to_url})\n\n"
 
-                # Get date/time from the first tweet in the thread
-                if not entry_date_time:
-                    # Assuming 'created_at' is in a format that datetime.strptime can parse
-                    # Example: "Wed Oct 10 20:19:24 +0000 2018"
-                    try:
-                        entry_date_time = datetime.strptime(tweet_in_thread['tweet']['created_at'], "%a %b %d %H:%M:%S %z %Y")
-                    except ValueError:
-                        print(f"Warning: Could not parse date {tweet_in_thread['tweet']['created_at']}")
-                        entry_date_time = None
+        # Add likes, retweets, and original tweet link
+        tweet_url = f"https://twitter.com/{CURRENT_USERNAME}/status/{first_tweet_in_thread['id_str']}"
+        if int(first_tweet_in_thread["favorite_count"]) > 0:
+            entry_text += f"[Likes: {first_tweet_in_thread['favorite_count']}]({tweet_url}/likes)\n"
+        if int(first_tweet_in_thread["retweet_count"]) > 0:
+            entry_text += f"[Retweets: {first_tweet_in_thread['retweet_count']}]({tweet_url}/retweets)\n"
+        entry_text += f"[Original Tweet]({tweet_url})\n"
 
-                # Get coordinates from the first tweet in the thread that has them
-                if not entry_coordinate and tweet_in_thread["tweet"].get("coordinates") and tweet_in_thread["tweet"]["coordinates"].get("coordinates"):
-                    longitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][0]
-                    latitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][1]
-                    entry_coordinate = (latitude, longitude)
-
-            # Add a title to the entry text
-            title = f"{category}"
-            entry_text = f"# {title}\n\n{entry_text}"
-
-            # Add likes, retweets, and original tweet link
-            first_tweet_in_thread = thread[0]['tweet']
-            tweet_url = f"https://twitter.com/{CURRENT_USERNAME}/status/{first_tweet_in_thread['id_str']}"
-            if int(first_tweet_in_thread["favorite_count"]) > 0:
-                entry_text += f"[Likes: {first_tweet_in_thread['favorite_count']}]({tweet_url}/likes)\n"
-            if int(first_tweet_in_thread["retweet_count"]) > 0:
-                entry_text += f"[Retweets: {first_tweet_in_thread['retweet_count']}]({tweet_url}/retweets)\n"
-            entry_text += f"[Original Tweet]({tweet_url})\n"
-
-            # Call add_post to create the Day One entry
-            add_post(
-                text=entry_text,
-                journal=config.JOURNAL_NAME,
-                tags=list(set(entry_tags)),  # Remove duplicate tags
-                date_time=entry_date_time,
-                coordinate=entry_coordinate,
-                attachments=entry_media_files
-            )
+        # Call add_post to create the Day One entry
+        add_post(
+            text=entry_text,
+            journal=config.JOURNAL_NAME,
+            tags=list(set(entry_tags)),  # Remove duplicate tags
+            date_time=entry_date_time,
+            coordinate=entry_coordinate,
+            attachments=entry_media_files
+        )
 
 
 if __name__ == "__main__":
