@@ -2,7 +2,7 @@ import os
 import random
 from datetime import datetime
 
-
+from config import CURRENT_USERNAME
 from tweet_parser import (
     load_tweets,
     combine_threads,
@@ -115,13 +115,12 @@ def main():
 
             # Add likes, retweets, and original tweet link
             first_tweet_in_thread = thread[0]['tweet']
+            tweet_url = f"https://twitter.com/{CURRENT_USERNAME}/status/{first_tweet_in_thread['id_str']}"
             if int(first_tweet_in_thread["favorite_count"]) > 0:
-                entry_text += f"Likes: {first_tweet_in_thread['favorite_count']}\n"
+                entry_text += f"[Likes: {first_tweet_in_thread['favorite_count']}]({tweet_url}/likes)\n"
             if int(first_tweet_in_thread["retweet_count"]) > 0:
-                entry_text += f"Retweets: {first_tweet_in_thread['retweet_count']}\n"
-
-            tweet_url = f"https://twitter.com/i/web/status/{first_tweet_in_thread['id_str']}"
-            entry_text += f"Original Tweet: {tweet_url}\n"
+                entry_text += f"[Retweets: {first_tweet_in_thread['retweet_count']}]({tweet_url}/retweets)\n"
+            entry_text += f"[Original Tweet]({tweet_url})\n"
 
             # Call add_post to create the Day One entry
             add_post(
