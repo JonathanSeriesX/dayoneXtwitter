@@ -58,7 +58,6 @@ def generate_entry_title(entry_text: str, category: str, thread_length: int):
 
 def build_entry_content(entry_text: str, first_tweet: dict, category: str, title: str):
     """Constructs the final text content for the Day One entry."""
-    entry_text = f"# {title}\n\n{entry_text}\n\n"
     tweet_url = f"https://twitter.com/{config.CURRENT_USERNAME}/status/{first_tweet['id_str']}"
     metrics = []
     likes = int(first_tweet["favorite_count"])
@@ -68,10 +67,10 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
         mentions = re.findall(r"@\w+", entry_text)
         rest = re.sub(r"(?:@\w+\s*)+", "", entry_text).strip()
         mentions_str = " ".join(mentions)
-        entry_text = f"#{rest}\n\n"
+        entry_text = f"{rest}\n\n"
         reply_to_tweet_id = first_tweet["in_reply_to_status_id_str"]
         reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
-        entry_text += f"[In response to]({reply_to_url}) {mentions_str}\n"
+        entry_text += f"In [response]({reply_to_url}) to {mentions_str}\n"
 
     if likes > 0:
         metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
@@ -81,8 +80,10 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
     if metrics:
         entry_text += "   ".join(metrics) + "\n"
 
-        # Add a footer with a direct link to the tweet on twitter.com.
-    entry_text += f"______\n[Open on twitter.com]({tweet_url})\n"
+    # Add a footer with a direct link to the tweet on twitter.com.
+    entry_text += f"______\nOpen on [twitter.com]({tweet_url})\n"
+
+    entry_text = f"# {title}\n\n{entry_text}\n\n"
 
     return entry_text
 

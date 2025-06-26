@@ -5,27 +5,38 @@ from collections import defaultdict
 
 def _get_reply_category(first_tweet):
     """
-    Categorizes a reply tweet based on its mentions.
+    Categorizes a reply tweet by extracting all @handles from full_text
+    in order, then mapping each to its real name if present in entities,
+    or falling back to the @nickname.
     """
+    text = first_tweet.get("full_text", "")
     mentions = first_tweet.get("entities", {}).get("user_mentions", [])
-    reply_to_user = first_tweet.get("in_reply_to_screen_name", "deleted user")
 
-    # If multiple users are mentioned, it's a conversation.
-    if len(mentions) > 1:
-        if len(mentions) == 2:
-            return f"Replied to {mentions[0]["name"]} and {mentions[1]["name"]}"
-        return (
-                "Replied to "
-                + ", ".join(f"{m['name']}" for m in mentions[:-1])
-                + f", and {mentions[-1]['name']}"
-        )
-    # If only one user is mentioned (or implied), it's a reply to that user.
-    reply_to_name = reply_to_user  # Default to user if name not found
-    for mention in mentions:
-        if mention['screen_name'] == reply_to_user:
-            reply_to_name = mention['name']
-            break
-    return f"Replied to {reply_to_name}"
+    # Build a lookup from screen_name to real name
+    name_map = {m["screen_name"]: m.get("name") for m in mentions}
+
+    # Extract handles in the order they appear, remove duplicates
+    handles = []
+    for h in re.findall(r"@([A-Za-z0-9_]+)", text):
+        if h not in handles:
+            handles.append(h)
+
+    # If no handles found, try the in_reply_to_screen_name
+    if not handles and first_tweet.get("in_reply_to_screen_name"):
+        handles = [first_tweet["in_reply_to_screen_name"]]
+
+    # Convert each handle to display name
+    displays = [name_map.get(h) or f"@{h}" for h in handles]
+
+    # Format according to count
+    n = len(displays)
+    if n > 1:
+        if n == 2:
+            return f"Replied to {displays[0]} and {displays[1]}"
+        return "Replied to " + ", ".join(displays[:-1]) + f", and {displays[-1]}"
+    if n == 1:
+        return f"Replied to {displays[0]}"
+    return "Not a reply" # literally impossible, we should segfault if it happens lol
 
 
 def get_thread_category(thread):
