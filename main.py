@@ -156,7 +156,7 @@ def main():
         # Determine the title for the Day One entry.
         if config.PROCESS_TITLES_WITH_LLM and len(thread) > 1:
             # Generate a one-word summary using the local LLM.
-            llm_summary = get_tweet_summary(entry_text)
+            llm_summary = get_tweet_summary(entry_text).lower()
             # Add a title to the entry text, using the determined thread category and LLM summary.
             if llm_summary != "Uncategorized":
                 if category == "My tweet":

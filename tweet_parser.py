@@ -8,24 +8,24 @@ def _get_reply_category(first_tweet):
     Categorizes a reply tweet based on its mentions.
     """
     mentions = first_tweet.get("entities", {}).get("user_mentions", [])
-    reply_to_user = first_tweet.get("in_reply_to_screen_name", "user")
+    reply_to_user = first_tweet.get("in_reply_to_screen_name", "deleted user")
 
     # If multiple users are mentioned, it's a conversation.
     if len(mentions) > 1:
         if len(mentions) == 2:
-            return f"In response to {mentions[0]["name"]} and {mentions[1]["name"]}"
+            return f"Replied to {mentions[0]["name"]} and {mentions[1]["name"]}"
         return (
-                "In response to "
+                "Replied to "
                 + ", ".join(f"{m['name']}" for m in mentions[:-1])
                 + f", and {mentions[-1]['name']}"
         )
     # If only one user is mentioned (or implied), it's a reply to that user.
-    reply_to_name = reply_to_user  # Default to screen_name if name not found
+    reply_to_name = reply_to_user  # Default to user if name not found
     for mention in mentions:
         if mention['screen_name'] == reply_to_user:
             reply_to_name = mention['name']
             break
-    return f"In response to {reply_to_name}"
+    return f"Replied to {reply_to_name}"
 
 
 def get_thread_category(thread):
@@ -74,23 +74,23 @@ def get_thread_category(thread):
     # Categorize based on tweet properties, with more specific categories first.
     # A thread with more than one tweet is always a 'My thread'.
     if len(thread) > 1:
-        return "My thread"
+        return "Wrote a thread"
 
     # A single tweet starting with "RT @", and not part of a larger thread, is a 'My retweet'.
     if is_retweet:
-        return "My retweet"
+        return "Retweeted"
 
     # A single tweet with a non-media Twitter/X link and not a reply is a 'My quote tweet'.
     # This handles cases where 'quoted_status_id_str' might be missing but a quote link exists.
     if has_non_media_twitter_link and not is_reply:
-        return "My quote tweet"
+        return "Quoted a tweet"
 
     # If it's a reply, determine the specific reply category using the helper function.
     if is_reply:
         return _get_reply_category(first_tweet)
 
     # If none of the above conditions are met, it's a standalone tweet.
-    return "My tweet"
+    return "Tweeted"
 
 def load_tweets(tweet_archive_path):
     """

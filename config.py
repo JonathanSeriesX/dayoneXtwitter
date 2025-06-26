@@ -17,4 +17,4 @@ SHUFFLE_MODE = True # otherwise, we start with the oldest one
 PROCESS_TITLES_WITH_LLM = True # Set to True to enable LLM-based title generation
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
 OLLAMA_MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "llama3.1") # Default to llama3.1, can be configured
-OLLAMA_PROMPT = "Figure out, what subject this tweet is about. Only output one or two words, nothing else. Lowercase letters only!" # tweet itself comes right afterwards
+OLLAMA_PROMPT = "Figure out, what subject this tweet is about. Only output one or two words, nothing else." # tweet itself comes right afterwards
