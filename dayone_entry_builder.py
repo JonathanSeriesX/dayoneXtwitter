@@ -4,6 +4,25 @@ from datetime import datetime
 import config
 from llm_analyzer import get_tweet_summary
 
+def escape_md(text: str) -> str:
+    # 1) Handle line-start markers
+    lines = []
+    for line in text.splitlines():
+        if line.startswith("# "):
+            # escape real Markdown heading, not hashtags like "#AI"
+            line = "\\" + line
+        elif line and line[0] in ("-", "+", "*", ">"):
+            # escape lists & blockquotes
+            line = "\\" + line
+        lines.append(line)
+    escaped = "\n".join(lines)
+
+    # 2) Escape inline markdown chars
+    for ch in ("*", "_", "`", "|", "!", "[", "]", "(", ")"):
+        escaped = escaped.replace(ch, "\\" + ch)
+
+    return escaped
+
 def aggregate_thread_data(thread: list):
     """Aggregates text, tags, media files, date, and coordinates from a thread."""
     entry_text = ""
@@ -67,6 +86,7 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
         mentions = re.findall(r"@\w+", entry_text)
         rest = re.sub(r"(?:@\w+\s*)+", "", entry_text).strip()
         mentions_str = " ".join(mentions)
+        rest = escape_md(rest)
         entry_text = f"{rest}\n\n"
         reply_to_tweet_id = first_tweet["in_reply_to_status_id_str"]
         reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
@@ -81,7 +101,7 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
         entry_text += "   ".join(metrics) + "\n"
 
     # Add a footer with a direct link to the tweet on twitter.com.
-    entry_text += f"______\nOpen on [twitter.com]({tweet_url})\n"
+    entry_text += f"___\nOpen on [twitter.com]({tweet_url})\n"
 
     entry_text = f"# {title}\n\n{entry_text}\n\n"
 
@@ -96,5 +116,9 @@ def get_target_journal(category: str, tweet_id: str):
             target_journal = config.REPLY_JOURNAL_NAME
         else:
             print(f"Skipping reply thread {tweet_id} as REPLY_JOURNAL_NAME is not set.")
+            return None
+    if category.startswith("Retweet"):
+        if not config.IGNORE_RETWEETS:
+            print(f"Skipping retweet {tweet_id} as IGNORE_RETWEETS is enabled.")
             return None
     return target_journal

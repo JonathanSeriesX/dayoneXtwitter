@@ -3,6 +3,32 @@ import re
 import os
 from collections import defaultdict
 
+def extract_retweet_inplace(first_tweet):
+    """
+    If full_text starts with RT @handle: or RT "@handle: (or even RT @handle":),
+    strips that prefix off full_text in-place and returns the retweeted user's
+    name (or @handle if not in entities). Returns None if no RT found.
+    """
+    tweet = first_tweet.get("tweet", first_tweet)
+    text = tweet.get("full_text", "")
+    # Match RT, optional quote before/after handle, then colon
+    m = re.match(r'^RT\s+["]?\@([A-Za-z0-9_]+)["]?:\s*(.*)', text, re.DOTALL)
+    if not m:
+        return None
+
+    handle, remainder = m.group(1), m.group(2)
+    tweet["full_text"] = remainder  # mutate in place
+
+    # Lookup real name in entities
+    mentions = tweet.get("entities", {}).get("user_mentions", [])
+    name = next(
+        (ment.get("name") for ment in mentions
+         if ment["screen_name"].lower() == handle.lower()),
+        None
+    ) or f"@{handle}"
+
+    return name
+
 def _get_reply_category(first_tweet):
     """
     Categorizes a reply tweet by extracting all @handles from full_text
@@ -53,14 +79,15 @@ def get_thread_category(thread):
         str: A string describing the category of the thread.
     """
     if not thread:
-        return "Empty threat"
+        return "Empty threat" # again, we should just segfault at this point
 
     # The first tweet in the thread is used to determine its category.
     first_tweet_obj = thread[0]
     first_tweet = first_tweet_obj["tweet"]
 
     # Determine if the tweet is a direct retweet (starts with "RT @")
-    is_retweet = first_tweet["full_text"].startswith("RT @")
+    is_retweet = first_tweet["full_text"].startswith("RT @") or first_tweet["full_text"].startswith("RT \"@")
+
     # Determine if the tweet is a reply to another tweet
     is_reply = first_tweet.get("in_reply_to_status_id_str") is not None
 
@@ -89,7 +116,8 @@ def get_thread_category(thread):
 
     # A single tweet starting with "RT @", and not part of a larger thread, is a 'My retweet'.
     if is_retweet:
-        return "Retweeted"
+        name = extract_retweet_inplace(first_tweet)
+        return f"Retweeted {name}"
 
     # A single tweet with a non-media Twitter/X link and not a reply is a 'My quote tweet'.
     # This handles cases where 'quoted_status_id_str' might be missing but a quote link exists.
