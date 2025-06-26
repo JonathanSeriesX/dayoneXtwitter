@@ -3,6 +3,46 @@ import re
 import os
 from collections import defaultdict
 
+def get_thread_category(thread):
+    """
+    Categorizes a thread based on its properties.
+
+    Args:
+        thread: A list of tweet objects representing a thread.
+
+    Returns:
+        A string describing the category of the thread.
+    """
+    if not thread:
+        return "Empty thread"
+
+    # The first tweet determines the category for single-tweet threads.
+    first_tweet_obj = thread[0]
+    first_tweet = first_tweet_obj["tweet"]
+
+    is_retweet = first_tweet["retweeted"] #first_tweet["full_text"].startswith("RT @")
+    #print(is_retweet)
+
+    # A tweet is a reply if it has the 'in_reply_to_status_id_str' field.
+    is_reply = first_tweet.get("in_reply_to_status_id_str") is not None
+
+    # A list of more than one tweet is always a thread you created.
+    if len(thread) > 1:
+        return "My thread"
+
+    # For single-tweet "threads":
+    if is_retweet:
+        return "My retweet"
+
+    if is_reply:
+        # If it's a reply and a single tweet, it's a reply to someone else.
+        # Self-replies would have been grouped into a thread.
+        reply_to_user = first_tweet.get("in_reply_to_screen_name", "user")
+        return f"My reply to @{reply_to_user}"
+
+    # If it's not a thread, retweet, or reply, it's a standalone tweet.
+    return "My tweet"
+
 def load_tweets(tweet_archive_path):
     """Loads tweets from the Twitter archive JSON."""
     with open(tweet_archive_path, "r", encoding="utf-8") as file:
@@ -67,7 +107,7 @@ def combine_threads(tweets):
             children = children_map.get(current_tweet['tweet']['id_str'], [])
             sorted_children = sorted(children, key=lambda t: t['tweet']['id_str'])
             queue.extend(sorted_children)
-        if len(thread) > 1:
+        if len(thread) > 0:
             final_threads.append(thread)
 
     return final_threads

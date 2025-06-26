@@ -4,6 +4,7 @@ from tweet_parser import (
     load_tweets,
     combine_threads,
     process_tweet_text_for_markdown_links,
+    get_thread_category,
 )
 import config
 
@@ -24,14 +25,21 @@ def main():
     print(f"Converted it into {len(threads)} threads.")
 
     for i, thread in enumerate(threads):
-        if i > 20:
+        if i > 30:
             break
-        print(f"\n--- Thread {i + 1} ({len(thread)} tweet(s)) ---")
-        for i, tweet_in_thread in enumerate(thread):
-            # Indent replies for readability
-            indent = "  " if i > 0 else ""
+
+        category = get_thread_category(thread)
+        if len(thread) > 1:
+            header = f"--- {category} ({len(thread)} tweets) ---"
+        else:
+            header = f"--- {category} ---"
+
+        print(f"\n{header}")
+
+        for j, tweet_in_thread in enumerate(thread):
+            indent = "  " if j > 0 else ""
             print(f"{indent} L {tweet_in_thread['tweet']['full_text']}")
-            if tweet_in_thread['tweet']['media_files']:
+            if tweet_in_thread["tweet"]["media_files"]:
                 print(f"{indent}   Media: {tweet_in_thread['tweet']['media_files']}")
 
 
