@@ -10,6 +10,7 @@ def add_post(
         tags: Optional[List[str]] = None,
         date_time: Optional[datetime] = None,
         coordinate: Optional[Tuple[float, float]] = None,
+        attachments: Optional[List[str]] = None,
 ) -> bool:
     """
     Creates a new entry in the Day One app using the CLI.
@@ -45,6 +46,10 @@ def add_post(
         # Day One CLI expects latitude then longitude
         lat, lon = coordinate
         command.extend(["--coordinate", str(lat), str(lon)])
+
+    if attachments:
+        command.append("--attachments")
+        command.extend(attachments)
 
     return _execute_command(command)
 
