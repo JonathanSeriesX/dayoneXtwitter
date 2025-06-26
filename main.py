@@ -1,5 +1,6 @@
 import os
 import random
+import re
 from datetime import datetime
 
 from config import CURRENT_USERNAME
@@ -106,7 +107,7 @@ def main():
 
         # Add a title to the entry text
         title = f"{category}"
-        entry_text = f"# {title}\n\n{entry_text}"
+        entry_text = f"# {title}\n\n{entry_text}\n\n"
 
         first_tweet_in_thread = thread[0]['tweet'] # Define first_tweet_in_thread here
 
@@ -118,9 +119,20 @@ def main():
 
         # Add reply link if applicable
         if first_tweet_in_thread.get("in_reply_to_status_id_str"):
+            mentions = re.findall(r"@\w+", entry_text)
+            # mentions example == ['@ZephyrionVortex', '@TheOmenXXX', '@Dachsjaeger']
+
+            # 2. Remove them from the original text
+            rest = re.sub(r"(?:@\w+\s*)+", "", entry_text).strip()
+
+            # 3. If you need them as a single string
+            mentions_str = " ".join(mentions)
+            # mentions_str == "@ZephyrionVortex @TheOmenXXX @Dachsjaeger"
+
+            entry_text = f"#{rest}\n\n"
             reply_to_tweet_id = first_tweet_in_thread["in_reply_to_status_id_str"]
             reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
-            entry_text += f"[In response to]({reply_to_url})\n"
+            entry_text += f"[In response to]({reply_to_url}) {mentions_str}\n"
 
         if likes > 0:
             metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
@@ -130,8 +142,6 @@ def main():
         # if we have at least one, join on a space (or two) and add a single newline
         if metrics:
             entry_text += "   ".join(metrics) + "\n"
-
-
 
 
         entry_text += f"_______\n[Open on twitter.com]({tweet_url})\n"
