@@ -1,15 +1,15 @@
 import subprocess
 import sys
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 
 def add_post(
         text: str,
         journal: Optional[str] = None,
         tags: Optional[List[str]] = None,
-        starred: bool = False,
         date_time: Optional[datetime] = None,
+        coordinate: Optional[Tuple[float, float]] = None,
 ) -> bool:
     """
     Creates a new entry in the Day One app using the CLI.
@@ -18,8 +18,8 @@ def add_post(
         text: The main body text of the journal entry.
         journal: Optional: The name of the journal to add the entry to.
         tags: Optional: A list of tags to apply to the entry.
-        starred: Optional: Whether to mark the entry as starred.
         date_time: Optional: The specific date and time for the entry.
+        coordinate: Optional: A tuple of (latitude, longitude) for the entry's location.
 
     Returns:
         True if the command was executed successfully, otherwise False.
@@ -36,13 +36,15 @@ def add_post(
         command.append("--tags")
         command.extend(tags)
 
-    if starred:
-        command.append("--starred")
-
     if date_time:
         # Day One CLI expects a specific format, e.g., "2024-01-15 14:30:00"
         formatted_date = date_time.strftime("%Y-%m-%d %H:%M:%S")
         command.extend(["--date", formatted_date])
+
+    if coordinate:
+        # Day One CLI expects latitude then longitude
+        lat, lon = coordinate
+        command.extend(["--coordinate", str(lat), str(lon)])
 
     return _execute_command(command)
 

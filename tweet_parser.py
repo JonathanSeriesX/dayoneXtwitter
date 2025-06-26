@@ -14,7 +14,7 @@ def get_thread_category(thread):
         A string describing the category of the thread.
     """
     if not thread:
-        return "Empty thread"
+        return "Empty threat"
 
     # The first tweet determines the category for single-tweet threads.
     first_tweet_obj = thread[0]
