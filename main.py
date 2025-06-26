@@ -35,7 +35,12 @@ def _save_processed_tweet_id(tweet_id: str):
         f.write(f"{tweet_id}\n")
 
 def main():
-    print(f"Using journal: '{config.JOURNAL_NAME}'")
+    print(f"Journal for tweets: '{config.JOURNAL_NAME}'")
+    if config.REPLY_JOURNAL_NAME is not None:
+        print(f"Journal for replies: '{config.REPLY_JOURNAL_NAME}'")
+    else:
+        print(f"Ignoring replies")
+
     if not os.path.exists(config.TWEET_ARCHIVE_PATH):
         print(f"Error: The file {config.TWEET_ARCHIVE_PATH} does not exist.")
         return
@@ -206,11 +211,32 @@ def main():
         # Add a footer with a direct link to the tweet on twitter.com.
         entry_text += f"_______\n[Open on twitter.com]({tweet_url})\n"
 
+        if entry_text.startswith("RT @"):
+            # chop off the leading "RT "
+            mention, _, entry_text = entry_text[3:].partition(" ")
+            # clean "@user:" → "user"
+            username = mention.strip("@:")
+            # now `username` is the retweeted handle, and `entry_text` is the rest
+            print("Debug!" + username)
+
+        # Determine the target journal based on the category and configuration.
+        target_journal = config.JOURNAL_NAME
+        if category.startswith("Replied to"):
+            if config.REPLY_JOURNAL_NAME is not None:
+                target_journal = config.REPLY_JOURNAL_NAME
+            else:
+                print(f"Skipping reply thread {tweet_id} as REPLY_JOURNAL_NAME is not set.")
+                _save_processed_tweet_id(tweet_id) # Mark as processed to avoid re-processing
+                continue # Skip to the next thread
+
+
+
+
         # Call add_post to create the Day One entry.
         # Tags are converted to a set first to ensure uniqueness before converting back to a list.
         if add_post(
             text=entry_text,
-            journal=config.JOURNAL_NAME,
+            journal=target_journal,
             tags=list(set(entry_tags)),
             date_time=entry_date_time,
             coordinate=entry_coordinate,

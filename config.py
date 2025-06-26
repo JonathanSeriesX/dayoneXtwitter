@@ -7,7 +7,8 @@ Defines paths to the Twitter archive and Day One journal details.
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 TWEET_ARCHIVE_PATH = os.path.join(script_dir, "archive", "data", "tweets.js")
-JOURNAL_NAME = "Twitter Replies Test"
+JOURNAL_NAME = "Twitter Test"
+REPLY_JOURNAL_NAME = "Twitter Replies Test" # Set to a journal name (e.g., "Twitter Replies") to post replies there, or None to ignore them
 CURRENT_USERNAME = "JonathanSeriesX"
 STATUSES_FILE_PATH = os.path.join(script_dir, "statuses.txt") # Path to store processed tweet IDs
 MAX_THREADS_TO_PROCESS = 35 # Set to an integer to limit the number of threads processed, or None for no limit
