@@ -34,12 +34,12 @@ def main():
 
     # Limit the number of threads to process to avoid overwhelming Day One or for testing purposes.
     # This can be made configurable in config.py if needed.
-    MAX_THREADS_TO_PROCESS = 60
     # Iterate through each thread, process it, and create a Day One entry.
     for i, thread in enumerate(threads):
-        if i >= MAX_THREADS_TO_PROCESS:
-            print(f"\nStopping after processing {MAX_THREADS_TO_PROCESS} threads.")
-            break
+        if config.MAX_THREADS_TO_PROCESS:
+            if i>config.MAX_THREADS_TO_PROCESS:
+                print(f"\nStopping after processing {config.MAX_THREADS_TO_PROCESS} threads.")
+                break
 
         # Determine the category of the thread (e.g., "My thread", "My retweet").
         category = get_thread_category(thread)
