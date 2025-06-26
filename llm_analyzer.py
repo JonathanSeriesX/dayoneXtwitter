@@ -1,6 +1,6 @@
-import os
 import requests
 import json
+from config import OLLAMA_API_URL, OLLAMA_MODEL_NAME
 
 def get_tweet_summary(tweet_text: str) -> str:
     """
@@ -12,10 +12,11 @@ def get_tweet_summary(tweet_text: str) -> str:
     Returns:
         str: A one-word summary of the tweet, or "Uncategorized" if summarization fails.
     """
-    ollama_url = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
-    model_name = os.getenv("OLLAMA_MODEL_NAME", "llama3.1") # Default to llama3.1, can be configured
 
-    prompt = f"Figure out, what subject this tweet is about. Only output the word, nothing else.\n\nTweet: {tweet_text}\nSummary:"
+    ollama_url = OLLAMA_API_URL
+    model_name = OLLAMA_MODEL_NAME
+
+    prompt = f"Figure out, what subject this tweet is about. Only output one or two words in small letters, nothing else.\n\nTweet: {tweet_text}\nSummary:"
 
     headers = {"Content-Type": "application/json"}
     data = {
