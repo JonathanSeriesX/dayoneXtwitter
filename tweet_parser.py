@@ -21,10 +21,15 @@ def get_thread_category(thread):
     first_tweet = first_tweet_obj["tweet"]
 
     is_retweet = first_tweet["full_text"].startswith("RT @")
-    # TODO also if the link is to twitter...
-
-    # A tweet is a reply if it has the 'in_reply_to_status_id_str' field.
     is_reply = first_tweet.get("in_reply_to_status_id_str") is not None
+
+    # Check for retweet with comment
+    has_twitter_link = False
+    for url_entity in first_tweet.get("entities", {}).get("urls", []):
+        expanded_url = url_entity.get("expanded_url")
+        if expanded_url and ("twitter.com" in expanded_url or "x.com" in expanded_url):
+            has_twitter_link = True
+            break
 
     # A list of more than one tweet is always a thread you created.
     if len(thread) > 1:
@@ -34,10 +39,12 @@ def get_thread_category(thread):
     if is_retweet:
         return "My retweet"
 
+    if has_twitter_link and not is_reply:
+        return "My retweet with comment"
+
     if is_reply:
         # If it's a reply and a single tweet, it's a reply to someone else.
         # Self-replies would have been grouped into a thread.
-        #if first_tweet.get("")
         mentions = first_tweet.get("entities", {}).get("user_mentions", [])
         reply_to_user = first_tweet.get("in_reply_to_screen_name", "user")
 
