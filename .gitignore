@@ -1,4 +1,5 @@
 .idea
+# Local environment variables
 .env
 .venv
 __pycache__

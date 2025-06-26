@@ -20,8 +20,8 @@ def get_thread_category(thread):
     first_tweet_obj = thread[0]
     first_tweet = first_tweet_obj["tweet"]
 
-    is_retweet = first_tweet["retweeted"] #first_tweet["full_text"].startswith("RT @")
-    #print(is_retweet)
+    is_retweet = first_tweet["full_text"].startswith("RT @")
+    # TODO also if the link is to twitter...
 
     # A tweet is a reply if it has the 'in_reply_to_status_id_str' field.
     is_reply = first_tweet.get("in_reply_to_status_id_str") is not None
@@ -37,7 +37,18 @@ def get_thread_category(thread):
     if is_reply:
         # If it's a reply and a single tweet, it's a reply to someone else.
         # Self-replies would have been grouped into a thread.
+        #if first_tweet.get("")
+        mentions = first_tweet.get("entities", {}).get("user_mentions", [])
         reply_to_user = first_tweet.get("in_reply_to_screen_name", "user")
+
+        if len(mentions) > 1:
+            if len(mentions) == 2:
+                return f"My conversation with @{mentions[0]["screen_name"]} and @{mentions[1]["screen_name"]}"
+            return (
+                    "My conversation with "
+                    + ", ".join(f"@{m['screen_name']}" for m in mentions[:-1])
+                    + f", and @{mentions[-1]['screen_name']}"
+            )
         return f"My reply to @{reply_to_user}"
 
     # If it's not a thread, retweet, or reply, it's a standalone tweet.
@@ -112,7 +123,6 @@ def combine_threads(tweets):
 
     return final_threads
 
-
 def process_tweet_text_for_markdown_links(tweet):
     """
     Converts t.co links in a tweet's full_text to Markdown format using expanded URLs.
@@ -181,6 +191,74 @@ def process_tweet_text_for_markdown_links(tweet):
         media_url = media_info['media_url']
         processed_text = re.sub(re.escape(tco_url), '', processed_text)
         # Construct the path to the media file in the archive
+        media_filename = os.path.basename(media_url)
+        media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_data['id_str']}-{media_filename}")
+        tweet_data['media_files'].append(media_path)
+
+
+    tweet_data['full_text'] = processed_text.strip()
+
+
+def process_tweet_text_for_markdown_links(tweet):
+    """
+    Converts t.co links in a tweet's full_text to Markdown format using expanded URLs.
+    Modifies the tweet object in place.
+    """
+    tweet_data = tweet.get('tweet')
+    if not tweet_data:
+        return
+
+    full_text = tweet_data.get('full_text')
+    entities = tweet_data.get('entities')
+
+    if not full_text or not entities:
+        return
+
+    links_to_process = []
+    media_to_process = []
+
+    # Process 'urls' entities (standard links)
+    for url_entity in entities.get('urls', []):
+        tco_url = url_entity.get('url')
+        expanded_url = url_entity.get('expanded_url')
+        display_url = url_entity.get('display_url')
+
+        if tco_url and expanded_url:
+            link_text = display_url if display_url else expanded_url
+            links_to_process.append({
+                'tco_url': tco_url,
+                'markdown_link': f"[{link_text}]({expanded_url})"
+            })
+
+    # Process 'media' entities (links to attached media like photos/videos)
+    for media_entity in entities.get('media', []):
+        tco_url = media_entity.get('url')
+        media_url = media_entity.get('media_url_https')
+
+
+        if tco_url and media_url and media_entity.get('type') == 'photo':
+            media_to_process.append({
+                'tco_url': tco_url,
+                'media_url': media_url
+            })
+
+
+    links_to_process.sort(key=lambda x: len(x['tco_url']), reverse=True)
+    media_to_process.sort(key=lambda x: len(x['tco_url']), reverse=True)
+
+
+    processed_text = full_text
+    for link_info in links_to_process:
+        tco_url = link_info['tco_url']
+        markdown_link = link_info['markdown_link']
+
+        processed_text = re.sub(re.escape(tco_url), markdown_link, processed_text)
+
+    tweet_data['media_files'] = []
+    for media_info in media_to_process:
+        tco_url = media_info['tco_url']
+        media_url = media_info['media_url']
+        processed_text = re.sub(re.escape(tco_url), '', processed_text)
         media_filename = os.path.basename(media_url)
         media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_data['id_str']}-{media_filename}")
         tweet_data['media_files'].append(media_path)

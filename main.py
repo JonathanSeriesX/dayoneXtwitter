@@ -1,4 +1,6 @@
 import os
+import random
+
 
 from tweet_parser import (
     load_tweets,
@@ -23,6 +25,8 @@ def main():
     print("Processed tweet texts for Markdown links.")
     threads = combine_threads(tweets)
     print(f"Converted it into {len(threads)} threads.")
+
+    random.shuffle(threads)
 
     for i, thread in enumerate(threads):
         if i > 30:
