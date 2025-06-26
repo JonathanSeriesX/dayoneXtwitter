@@ -3,6 +3,31 @@ import re
 import os
 from collections import defaultdict
 
+def _get_reply_category(first_tweet):
+    """
+    Categorizes a reply tweet based on its mentions.
+    """
+    mentions = first_tweet.get("entities", {}).get("user_mentions", [])
+    reply_to_user = first_tweet.get("in_reply_to_screen_name", "user")
+
+    # If multiple users are mentioned, it's a conversation.
+    if len(mentions) > 1:
+        if len(mentions) == 2:
+            return f"In response to {mentions[0]["name"]} and {mentions[1]["name"]}"
+        return (
+                "In response to "
+                + ", ".join(f"{m['name']}" for m in mentions[:-1])
+                + f", and {mentions[-1]['name']}"
+        )
+    # If only one user is mentioned (or implied), it's a reply to that user.
+    reply_to_name = reply_to_user  # Default to screen_name if name not found
+    for mention in mentions:
+        if mention['screen_name'] == reply_to_user:
+            reply_to_name = mention['name']
+            break
+    return f"In response to {reply_to_name}"
+
+
 def get_thread_category(thread):
     """
     Categorizes a tweet thread based on the characteristics of its first tweet.
@@ -32,6 +57,7 @@ def get_thread_category(thread):
     # This helps identify quote tweets that are not explicitly marked with 'quoted_status_id_str'.
     has_non_media_twitter_link = False
     # Collect t.co URLs from media entities to exclude them from general URL checks.
+    # This prevents media links from being incorrectly identified as quote tweets.
     media_urls_tco = {m.get('url') for m in first_tweet.get('extended_entities', {}).get('media', [])}
     if not media_urls_tco:
         media_urls_tco = {m.get('url') for m in first_tweet.get('entities', {}).get('media', [])}
@@ -50,37 +76,20 @@ def get_thread_category(thread):
     if len(thread) > 1:
         return "My thread"
 
-    # A single tweet starting with "RT @" is a 'My retweet'.
+    # A single tweet starting with "RT @", and not part of a larger thread, is a 'My retweet'.
     if is_retweet:
         return "My retweet"
 
     # A single tweet with a non-media Twitter/X link and not a reply is a 'My quote tweet'.
+    # This handles cases where 'quoted_status_id_str' might be missing but a quote link exists.
     if has_non_media_twitter_link and not is_reply:
         return "My quote tweet"
 
-    # If it's a reply, determine the specific reply category.
+    # If it's a reply, determine the specific reply category using the helper function.
     if is_reply:
-        mentions = first_tweet.get("entities", {}).get("user_mentions", [])
-        reply_to_user = first_tweet.get("in_reply_to_screen_name", "user")
+        return _get_reply_category(first_tweet)
 
-        # If multiple users are mentioned, it's a conversation.
-        if len(mentions) > 1:
-            if len(mentions) == 2:
-                return f"My reply to {mentions[0]["name"]} and {mentions[1]["name"]}"
-            return (
-                    "My reply to "
-                    + ", ".join(f"{m['name']}" for m in mentions[:-1])
-                    + f", and {mentions[-1]['name']}"
-            )
-        # If only one user is mentioned (or implied), it's a reply to that user.
-        reply_to_name = reply_to_user # Default to screen_name if name not found
-        for mention in mentions:
-            if mention['screen_name'] == reply_to_user:
-                reply_to_name = mention['name']
-                break
-        return f"My reply to {reply_to_name}"
-
-    # If none of the above, it's a standalone tweet.
+    # If none of the above conditions are met, it's a standalone tweet.
     return "My tweet"
 
 def load_tweets(tweet_archive_path):
@@ -256,10 +265,10 @@ def process_tweet_text_for_markdown_links(tweet):
 
     processed_text = full_text
     # Replace t.co URLs with Markdown links in the tweet text.
+    # re.escape is used to treat special characters in the URL literally, preventing regex errors.
     for link_info in links_to_process:
         tco_url = link_info['tco_url']
         markdown_link = link_info['markdown_link']
-        # Use re.sub with re.escape to treat special characters in the URL literally.
         processed_text = re.sub(re.escape(tco_url), markdown_link, processed_text)
 
     tweet_data['media_files'] = []
@@ -267,6 +276,7 @@ def process_tweet_text_for_markdown_links(tweet):
     for media_info in media_to_process:
         tco_url = media_info['tco_url']
         media_url = media_info['media_url']
+        # Remove the t.co URL from the tweet text as it will be replaced by the media attachment.
         processed_text = re.sub(re.escape(tco_url), '', processed_text)
         
         # Construct the path to the media file in the local archive.
@@ -274,6 +284,8 @@ def process_tweet_text_for_markdown_links(tweet):
         # For videos and GIFs, ensure the file extension is .mp4 as they are converted.
         if media_info['type'] in ['video', 'animated_gif']:
             media_filename = os.path.splitext(media_filename)[0] + '.mp4'
+        # Construct the absolute path to the media file within the local archive structure.
+        # os.path.dirname(os.path.abspath(__file__)) gets the directory of the current script.
         media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_data['id_str']}-{media_filename}")
         tweet_data['media_files'].append(media_path)
 
