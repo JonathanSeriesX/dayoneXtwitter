@@ -10,4 +10,5 @@ TWEET_ARCHIVE_PATH = os.path.join(script_dir, "archive", "data", "tweets.js")
 JOURNAL_NAME = "Twitter Replies Test"
 CURRENT_USERNAME = "JonathanSeriesX"
 PROCESS_TITLES_WITH_LLM = False # Set to True to enable LLM-based title generation
-MAX_THREADS_TO_PROCESS = 120
+STATUSES_FILE_PATH = os.path.join(script_dir, "statuses.txt") # Path to store processed tweet IDs
+MAX_THREADS_TO_PROCESS = 120 # Set to an integer to limit the number of threads processed, or None for no limit

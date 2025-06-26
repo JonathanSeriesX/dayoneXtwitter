@@ -14,6 +14,25 @@ import config
 from dayone_entry import add_post
 from llm_analyzer import get_tweet_summary # For optional LLM-based title generation
 
+def _load_processed_tweet_ids() -> set:
+    """
+    Loads tweet IDs that have already been processed from the statuses file.
+    """
+    processed_ids = set()
+    if os.path.exists(config.STATUSES_FILE_PATH):
+        with open(config.STATUSES_FILE_PATH, "r") as f:
+            for line in f:
+                processed_ids.add(line.strip())
+    return processed_ids
+
+def _save_processed_tweet_id(tweet_id: str):
+    """
+    Saves a tweet ID to the statuses file, indicating it has been processed.
+    """
+    # Ensure the directory exists before writing the file
+    os.makedirs(os.path.dirname(config.STATUSES_FILE_PATH), exist_ok=True)
+    with open(config.STATUSES_FILE_PATH, "a") as f:
+        f.write(f"{tweet_id}\n")
 
 def main():
     print(f"Using journal: '{config.JOURNAL_NAME}'")
@@ -32,14 +51,21 @@ def main():
 
     random.shuffle(threads)
 
-    # Limit the number of threads to process to avoid overwhelming Day One or for testing purposes.
-    # This can be made configurable in config.py if needed.
+    processed_tweet_ids = _load_processed_tweet_ids()
+    print(f"Loaded {len(processed_tweet_ids)} previously processed tweet IDs.")
+
     # Iterate through each thread, process it, and create a Day One entry.
     for i, thread in enumerate(threads):
-        if config.MAX_THREADS_TO_PROCESS:
-            if i>config.MAX_THREADS_TO_PROCESS:
-                print(f"\nStopping after processing {config.MAX_THREADS_TO_PROCESS} threads.")
-                break
+        if config.MAX_THREADS_TO_PROCESS is not None and i >= config.MAX_THREADS_TO_PROCESS:
+            print(f"Stopping after processing {config.MAX_THREADS_TO_PROCESS} threads.")
+            break
+
+        first_tweet_in_thread = thread[0]['tweet']
+        tweet_id = first_tweet_in_thread['id_str']
+
+        if tweet_id in processed_tweet_ids:
+            print(f"Skipping already processed tweet ID: {tweet_id}")
+            continue
 
         # Determine the category of the thread (e.g., "My thread", "My retweet").
         category = get_thread_category(thread)
@@ -127,9 +153,6 @@ def main():
         # Get the first tweet object from the thread for specific details like URL and metrics.
         first_tweet_in_thread = thread[0]['tweet']
 
-        # Get the first tweet object from the thread for specific details like URL and metrics.
-        first_tweet_in_thread = thread[0]['tweet']
-
         # Determine the title for the Day One entry.
         if config.PROCESS_TITLES_WITH_LLM:
             # Generate a one-word summary using the local LLM.
@@ -182,14 +205,15 @@ def main():
 
         # Call add_post to create the Day One entry.
         # Tags are converted to a set first to ensure uniqueness before converting back to a list.
-        add_post(
+        if add_post(
             text=entry_text,
             journal=config.JOURNAL_NAME,
             tags=list(set(entry_tags)),
             date_time=entry_date_time,
             coordinate=entry_coordinate,
             attachments=entry_media_files
-        )
+        ):
+            _save_processed_tweet_id(tweet_id)
 
 
 if __name__ == "__main__":
