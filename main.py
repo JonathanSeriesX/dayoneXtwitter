@@ -12,6 +12,7 @@ from tweet_parser import (
 )
 import config
 from dayone_entry import add_post
+from llm_analyzer import get_tweet_summary # For optional LLM-based title generation
 
 
 def main():
@@ -126,8 +127,23 @@ def main():
         # Get the first tweet object from the thread for specific details like URL and metrics.
         first_tweet_in_thread = thread[0]['tweet']
 
-        # Add a title to the entry text, using the determined thread category.
-        title = f"{category}"
+        # Get the first tweet object from the thread for specific details like URL and metrics.
+        first_tweet_in_thread = thread[0]['tweet']
+
+        # Determine the title for the Day One entry.
+        if config.PROCESS_TITLES_WITH_LLM:
+            # Generate a one-word summary using the local LLM.
+            llm_summary = get_tweet_summary(first_tweet_in_thread['full_text'])
+            # Add a title to the entry text, using the determined thread category and LLM summary.
+            if category == "My tweet":
+                title = f"A tweet about {llm_summary}"
+            elif category == "My thread":
+                title = f"A thread about {llm_summary}"
+            else:
+                title = f"{category} about {llm_summary}"
+        else:
+            # Use the original category-based title if LLM processing is disabled.
+            title = f"{category}"
         entry_text = f"# {title}\n\n{entry_text}\n\n"
 
         # Construct the URL to the original tweet on twitter.com.
