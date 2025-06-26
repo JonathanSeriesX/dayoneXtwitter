@@ -34,7 +34,8 @@ def _save_processed_tweet_id(tweet_id: str):
     with open(config.STATUSES_FILE_PATH, "a") as f:
         f.write(f"{tweet_id}\n")
 
-def main():
+def _print_initial_status():
+    """Prints the initial journal names and checks for archive existence."""
     print(f"Journal for tweets: '{config.JOURNAL_NAME}'")
     if config.REPLY_JOURNAL_NAME is not None:
         print(f"Journal for replies: '{config.REPLY_JOURNAL_NAME}'")
@@ -43,9 +44,11 @@ def main():
 
     if not os.path.exists(config.TWEET_ARCHIVE_PATH):
         print(f"Error: The file {config.TWEET_ARCHIVE_PATH} does not exist.")
-        return
+        return False
+    return True
 
-    # Load tweets
+def _load_and_prepare_threads():
+    """Loads tweets, expands links, combines threads, and shuffles them."""
     tweets = load_tweets(config.TWEET_ARCHIVE_PATH)
     print(f"Found {len(tweets)} tweets in the archive.")
     for tweet in tweets:
@@ -53,196 +56,186 @@ def main():
     print("Expanded t.co links inside of tweets.")
     threads = combine_threads(tweets)
     print(f"Converted those tweets into {len(threads)} threads.")
-
     random.shuffle(threads)
+    return threads
 
-    processed_tweet_ids = _load_processed_tweet_ids()
-    print(f"Loaded {len(processed_tweet_ids)} previously processed tweet IDs.")
+def _display_thread_details(thread: list, category: str):
+    """Displays details for each tweet within a thread to the console."""
+    if len(thread) > 1:
+        header = f"--- {category} ({len(thread)} tweets) ---"
+    else:
+        header = f"--- {category} ---"
+    print(f"\n{header}")
 
-    # Iterate through each thread, process it, and create a Day One entry.
-    for i, thread in enumerate(threads):
-        if config.MAX_THREADS_TO_PROCESS is not None and i >= config.MAX_THREADS_TO_PROCESS:
-            print(f"Stopping after processing {config.MAX_THREADS_TO_PROCESS} threads.")
-            break
+    for j, tweet_in_thread in enumerate(thread):
+        indent = "  " if j > 0 else ""
+        print(f"{indent} L {tweet_in_thread['tweet']['full_text']}")
 
-        first_tweet_in_thread = thread[0]['tweet']
-        tweet_id = first_tweet_in_thread['id_str']
+        likes = int(tweet_in_thread["tweet"]["favorite_count"])
+        rts = int(tweet_in_thread["tweet"]["retweet_count"])
 
-        if tweet_id in processed_tweet_ids:
-            print(f"Skipping already processed tweet ID: {tweet_id}")
-            continue
-
-        # Determine the category of the thread (e.g., "My thread", "My retweet").
-        category = get_thread_category(thread)
-        # Construct a header for the console output, indicating thread type and tweet count.
-        if len(thread) > 1:
-            header = f"--- {category} ({len(thread)} tweets) ---"
-        else:
-            header = f"--- {category} ---"
-
-        print(f"\n{header}")
-
-        # Display details for each tweet within the current thread.
-        for j, tweet_in_thread in enumerate(thread):
-            # Indent subsequent tweets in a thread for better readability in console output.
-            indent = "  " if j > 0 else ""
-            print(f"{indent} L {tweet_in_thread['tweet']['full_text']}")
-            
-            # Extract and display engagement metrics (likes, retweets).
-            likes = int(tweet_in_thread["tweet"]["favorite_count"])
-            rts = int(tweet_in_thread["tweet"]["retweet_count"])
-
-            parts = []
-            if likes > 0:
-                parts.append(f"Likes: {likes}⭐️")
-            if rts > 0:
-                parts.append(f"Retweets: {rts}🔁")
-
-            if parts:
-                print(f"{indent}   " + "   ".join(parts))
-            
-            # Display hashtags associated with the tweet.
-            if tweet_in_thread["tweet"]["entities"].get("hashtags"):
-                for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
-                    print(f"{indent}   Hashtag: #{hashtag['text']}")
-            
-            # Display geographical coordinates if available.
-            if tweet_in_thread["tweet"].get("coordinates") and tweet_in_thread["tweet"]["coordinates"].get("coordinates"):
-                longitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][0]
-                latitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][1]
-                print(f"{indent}   Location: Longitude {longitude}, Latitude {latitude}")
-            
-            # Display paths to attached media files.
-            if tweet_in_thread["tweet"]["media_files"]:
-                for media_file in tweet_in_thread["tweet"]["media_files"]:
-                    print(f"{indent}   Media: {media_file}")
-
-        # --- Prepare data for Day One entry ---
-        # Initialize variables to accumulate data for the Day One entry from all tweets in the thread.
-        entry_text = ""
-        entry_tags = []
-        entry_media_files = []
-        entry_date_time = None  # Date/time will be taken from the first tweet.
-        entry_coordinate = None # Coordinate will be taken from the first tweet with coordinates.
-
-        # Aggregate content from all tweets in the thread for the Day One entry.
-        for tweet_in_thread in thread:
-            # Concatenate full text of all tweets in the thread.
-            entry_text += tweet_in_thread['tweet']['full_text'] + "\n\n"
-
-            # Collect all unique hashtags from all tweets in the thread.
-            if tweet_in_thread["tweet"]["entities"].get("hashtags"):
-                for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
-                    entry_tags.append(hashtag['text'])
-
-            # Collect all media file paths from all tweets in the thread.
-            if tweet_in_thread["tweet"]["media_files"]:
-                for media_file in tweet_in_thread["tweet"]["media_files"]:
-                    entry_media_files.append(media_file)
-
-            # Set the entry date/time using the 'created_at' timestamp of the first tweet in the thread.
-            # This ensures the Day One entry reflects the original tweet's timestamp.
-            if not entry_date_time:
-                try:
-                    entry_date_time = datetime.strptime(tweet_in_thread['tweet']['created_at'], "%a %b %d %H:%M:%S %z %Y")
-                except ValueError:
-                    print(f"Warning: Could not parse date {tweet_in_thread['tweet']['created_at']}")
-                    entry_date_time = None
-
-            # Set the entry coordinate using the first available coordinate from any tweet in the thread.
-            if not entry_coordinate and tweet_in_thread["tweet"].get("coordinates") and tweet_in_thread["tweet"]["coordinates"].get("coordinates"):
-                longitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][0]
-                latitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][1]
-                entry_coordinate = (latitude, longitude)
-
-        # Get the first tweet object from the thread for specific details like URL and metrics.
-        first_tweet_in_thread = thread[0]['tweet']
-
-        # Determine the title for the Day One entry.
-        if config.PROCESS_TITLES_WITH_LLM and len(thread) > 1:
-            # Generate a one-word summary using the local LLM.
-            llm_summary = get_tweet_summary(entry_text).lower()
-            # Add a title to the entry text, using the determined thread category and LLM summary.
-            if llm_summary != "Uncategorized":
-                if category == "My tweet":
-                    title = f"A tweet about {llm_summary}"
-                elif category == "My thread":
-                    title = f"A thread about {llm_summary}"
-                else:
-                    title = f"{category} about {llm_summary}"
-            else:
-                title = f"{category}"
-        else:
-            # Use the original category-based title if LLM processing is disabled.
-            title = f"{category}"
-        entry_text = f"# {title}\n\n{entry_text}\n\n"
-
-        # Construct the URL to the original tweet on twitter.com.
-        tweet_url = f"https://twitter.com/{CURRENT_USERNAME}/status/{first_tweet_in_thread['id_str']}"
-        metrics = []
-        likes = int(first_tweet_in_thread["favorite_count"])
-        rts = int(first_tweet_in_thread["retweet_count"])
-
-        # Handle reply links: extract mentions and format the reply URL.
-        if first_tweet_in_thread.get("in_reply_to_status_id_str"):
-            # Extract all @mentions from the entry text.
-            mentions = re.findall(r"@\w+", entry_text)
-            # Remove mentions from the main text to avoid duplication if they are part of the reply context.
-            rest = re.sub(r"(?:@\w+\s*)+", "", entry_text).strip()
-            # Join mentions into a single string for display.
-            mentions_str = " ".join(mentions)
-
-            # Reconstruct entry text with the cleaned text and the reply link.
-            entry_text = f"#{rest}\n\n"
-            reply_to_tweet_id = first_tweet_in_thread["in_reply_to_status_id_str"]
-            reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
-            entry_text += f"[In response to]({reply_to_url}) {mentions_str}\n"
-
-        # Add likes and retweets metrics with links to their respective Twitter pages.
+        parts = []
         if likes > 0:
-            metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
+            parts.append(f"Likes: {likes}⭐️")
         if rts > 0:
-            metrics.append(f"[Retweets: {rts}]({tweet_url}/retweets) 🔁")
+            parts.append(f"Retweets: {rts}🔁")
 
-        # If metrics exist, join them and add to the entry text.
-        if metrics:
-            entry_text += "   ".join(metrics) + "\n"
+        if parts:
+            print(f"{indent}   " + "   ".join(parts))
+
+        if tweet_in_thread["tweet"]["entities"].get("hashtags"):
+            for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
+                print(f"{indent}   Hashtag: #{hashtag['text']}")
+
+        if tweet_in_thread["tweet"].get("coordinates") and tweet_in_thread["tweet"]["coordinates"].get("coordinates"):
+            longitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][0]
+            latitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][1]
+            print(f"{indent}   Location: Longitude {longitude}, Latitude {latitude}")
+
+        if tweet_in_thread["tweet"]["media_files"]:
+            for media_file in tweet_in_thread["tweet"]["media_files"]:
+                print(f"{indent}   Media: {media_file}")
+
+def _aggregate_thread_data(thread: list):
+    """Aggregates text, tags, media files, date, and coordinates from a thread."""
+    entry_text = ""
+    entry_tags = []
+    entry_media_files = []
+    entry_date_time = None
+    entry_coordinate = None
+
+    for tweet_in_thread in thread:
+        entry_text += tweet_in_thread['tweet']['full_text'] + "\n\n"
+
+        if tweet_in_thread["tweet"]["entities"].get("hashtags"):
+            for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
+                entry_tags.append(hashtag['text'])
+
+        if tweet_in_thread["tweet"]["media_files"]:
+            for media_file in tweet_in_thread["tweet"]["media_files"]:
+                entry_media_files.append(media_file)
+
+        if not entry_date_time:
+            try:
+                entry_date_time = datetime.strptime(tweet_in_thread['tweet']['created_at'], "%a %b %d %H:%M:%S %z %Y")
+            except ValueError:
+                print(f"Warning: Could not parse date {tweet_in_thread['tweet']['created_at']}")
+                entry_date_time = None
+
+        if not entry_coordinate and tweet_in_thread["tweet"].get("coordinates") and tweet_in_thread["tweet"]["coordinates"].get("coordinates"):
+            longitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][0]
+            latitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][1]
+            entry_coordinate = (latitude, longitude)
+    
+    return entry_text, entry_tags, entry_media_files, entry_date_time, entry_coordinate
+
+def _generate_entry_title(entry_text: str, category: str, thread_length: int):
+    """Generates the title for the Day One entry, optionally using an LLM."""
+    if config.PROCESS_TITLES_WITH_LLM and thread_length > 1:
+        llm_summary = get_tweet_summary(entry_text).lower()
+        if llm_summary != "Uncategorized":
+            if category == "My tweet":
+                title = f"A tweet about {llm_summary}"
+            elif category == "My thread":
+                title = f"A thread about {llm_summary}"
+            else:
+                title = f"{category} about {llm_summary}"
+        else:
+            title = f"{category}"
+    else:
+        title = f"{category}"
+    return title
+
+def _build_entry_content(entry_text: str, first_tweet: dict, category: str, title: str):
+    """Constructs the final text content for the Day One entry."""
+    entry_text = f"# {title}\n\n{entry_text}\n\n"
+    tweet_url = f"https://twitter.com/{CURRENT_USERNAME}/status/{first_tweet['id_str']}"
+    metrics = []
+    likes = int(first_tweet["favorite_count"])
+    rts = int(first_tweet["retweet_count"])
+
+    if first_tweet.get("in_reply_to_status_id_str"):
+        mentions = re.findall(r"@\w+", entry_text)
+        rest = re.sub(r"(?:@\w+\s*)+", "", entry_text).strip()
+        mentions_str = " ".join(mentions)
+        entry_text = f"#{rest}\n\n"
+        reply_to_tweet_id = first_tweet["in_reply_to_status_id_str"]
+        reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
+        entry_text += f"[In response to]({reply_to_url}) {mentions_str}\n"
+
+    if likes > 0:
+        metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
+    if rts > 0:
+        metrics.append(f"[Retweets: {rts}]({tweet_url}/retweets) 🔁")
+
+    if metrics:
+        entry_text += "   ".join(metrics) + "\n"
 
         # Add a footer with a direct link to the tweet on twitter.com.
         entry_text += f"_______\n[Open on twitter.com]({tweet_url})\n"
 
-        if entry_text.startswith("RT @"):
-            # chop off the leading "RT "
-            mention, _, entry_text = entry_text[3:].partition(" ")
-            # clean "@user:" → "user"
-            username = mention.strip("@:")
-            # now `username` is the retweeted handle, and `entry_text` is the rest
-            print("Debug!" + username)
+    if entry_text.startswith("RT @"):
+        mention, _, entry_text = entry_text[3:].partition(" ")
+        username = mention.strip("@:")
 
-        # Determine the target journal based on the category and configuration.
-        target_journal = config.JOURNAL_NAME
-        if category.startswith("Replied to"):
-            if config.REPLY_JOURNAL_NAME is not None:
-                target_journal = config.REPLY_JOURNAL_NAME
-            else:
-                print(f"Skipping reply thread {tweet_id} as REPLY_JOURNAL_NAME is not set.")
-                _save_processed_tweet_id(tweet_id) # Mark as processed to avoid re-processing
-                continue # Skip to the next thread
+    return entry_text
 
-
-
-
-        # Call add_post to create the Day One entry.
-        # Tags are converted to a set first to ensure uniqueness before converting back to a list.
-        if add_post(
-            text=entry_text,
-            journal=target_journal,
-            tags=list(set(entry_tags)),
-            date_time=entry_date_time,
-            coordinate=entry_coordinate,
-            attachments=entry_media_files
-        ):
+def _get_target_journal(category: str, tweet_id: str):
+    """Determines the target journal for the Day One entry."""
+    target_journal = config.JOURNAL_NAME
+    if category.startswith("Replied to"):
+        if config.REPLY_JOURNAL_NAME is not None:
+            target_journal = config.REPLY_JOURNAL_NAME
+        else:
+            print(f"Skipping reply thread {tweet_id} as REPLY_JOURNAL_NAME is not set.")
             _save_processed_tweet_id(tweet_id)
+            return None
+    return target_journal
+
+def _process_single_thread(thread: list, processed_tweet_ids: set):
+    """Processes a single thread, prepares Day One entry data, and adds the post."""
+    first_tweet_in_thread = thread[0]['tweet']
+    tweet_id = first_tweet_in_thread['id_str']
+
+    if tweet_id in processed_tweet_ids:
+        print(f"Skipping already processed tweet ID: {tweet_id}")
+        return
+
+    category = get_thread_category(thread)
+    _display_thread_details(thread, category)
+
+    entry_text, entry_tags, entry_media_files, entry_date_time, entry_coordinate = _aggregate_thread_data(thread)
+    
+    title = _generate_entry_title(entry_text, category, len(thread))
+    entry_text = _build_entry_content(entry_text, first_tweet_in_thread, category, title)
+
+    target_journal = _get_target_journal(category, tweet_id)
+    if target_journal is None:
+        return
+
+    if add_post(
+        text=entry_text,
+        journal=target_journal,
+        tags=list(set(entry_tags)),
+        date_time=entry_date_time,
+        coordinate=entry_coordinate,
+        attachments=entry_media_files
+    ):
+        _save_processed_tweet_id(tweet_id)
+
+def main():
+    if not _print_initial_status():
+        return
+
+    threads = _load_and_prepare_threads()
+    processed_tweet_ids = _load_processed_tweet_ids()
+    print(f"Loaded {len(processed_tweet_ids)} previously processed tweet IDs.")
+
+    for i, thread in enumerate(threads):
+        if config.MAX_THREADS_TO_PROCESS is not None and i >= config.MAX_THREADS_TO_PROCESS:
+            print(f"Stopping after processing {config.MAX_THREADS_TO_PROCESS} threads.")
+            break
+        _process_single_thread(thread, processed_tweet_ids)
 
 
 if __name__ == "__main__":
