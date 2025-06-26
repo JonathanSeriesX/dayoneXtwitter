@@ -7,3 +7,4 @@ archive
 tweets_json
 twitter*
 .DS_Store
+statuses.txt
