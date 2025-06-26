@@ -163,10 +163,14 @@ def process_tweet_text_for_markdown_links(tweet):
             })
 
     # Process 'media' entities (links to attached media like photos/videos)
-    for media_entity in entities.get('media', []):
+    # Prioritize extended_entities for comprehensive media handling
+    media_entities = tweet_data.get('extended_entities', {}).get('media', [])
+    if not media_entities:
+        media_entities = entities.get('media', []) # Fallback to entities if extended_entities is not present
+
+    for media_entity in media_entities:
         tco_url = media_entity.get('url')
         media_url = media_entity.get('media_url_https')
-
 
         if tco_url and media_url and media_entity.get('type') == 'photo':
             media_to_process.append({
@@ -206,69 +210,4 @@ def process_tweet_text_for_markdown_links(tweet):
     tweet_data['full_text'] = processed_text.strip()
 
 
-def process_tweet_text_for_markdown_links(tweet):
-    """
-    Converts t.co links in a tweet's full_text to Markdown format using expanded URLs.
-    Modifies the tweet object in place.
-    """
-    tweet_data = tweet.get('tweet')
-    if not tweet_data:
-        return
 
-    full_text = tweet_data.get('full_text')
-    entities = tweet_data.get('entities')
-
-    if not full_text or not entities:
-        return
-
-    links_to_process = []
-    media_to_process = []
-
-    # Process 'urls' entities (standard links)
-    for url_entity in entities.get('urls', []):
-        tco_url = url_entity.get('url')
-        expanded_url = url_entity.get('expanded_url')
-        display_url = url_entity.get('display_url')
-
-        if tco_url and expanded_url:
-            link_text = display_url if display_url else expanded_url
-            links_to_process.append({
-                'tco_url': tco_url,
-                'markdown_link': f"[{link_text}]({expanded_url})"
-            })
-
-    # Process 'media' entities (links to attached media like photos/videos)
-    for media_entity in entities.get('media', []):
-        tco_url = media_entity.get('url')
-        media_url = media_entity.get('media_url_https')
-
-
-        if tco_url and media_url and media_entity.get('type') == 'photo':
-            media_to_process.append({
-                'tco_url': tco_url,
-                'media_url': media_url
-            })
-
-
-    links_to_process.sort(key=lambda x: len(x['tco_url']), reverse=True)
-    media_to_process.sort(key=lambda x: len(x['tco_url']), reverse=True)
-
-
-    processed_text = full_text
-    for link_info in links_to_process:
-        tco_url = link_info['tco_url']
-        markdown_link = link_info['markdown_link']
-
-        processed_text = re.sub(re.escape(tco_url), markdown_link, processed_text)
-
-    tweet_data['media_files'] = []
-    for media_info in media_to_process:
-        tco_url = media_info['tco_url']
-        media_url = media_info['media_url']
-        processed_text = re.sub(re.escape(tco_url), '', processed_text)
-        media_filename = os.path.basename(media_url)
-        media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_data['id_str']}-{media_filename}")
-        tweet_data['media_files'].append(media_path)
-
-
-    tweet_data['full_text'] = processed_text.strip()

@@ -44,7 +44,8 @@ def main():
             indent = "  " if j > 0 else ""
             print(f"{indent} L {tweet_in_thread['tweet']['full_text']}")
             if tweet_in_thread["tweet"]["media_files"]:
-                print(f"{indent}   Media: {tweet_in_thread['tweet']['media_files']}")
+                for media_file in tweet_in_thread["tweet"]["media_files"]:
+                    print(f"{indent}   Media: {media_file}")
 
 
 if __name__ == "__main__":
