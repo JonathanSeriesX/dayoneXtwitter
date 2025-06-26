@@ -13,7 +13,7 @@ def get_tweet_summary(tweet_text: str) -> str:
         str: A one-word summary of the tweet, or "Uncategorized" if summarization fails.
     """
     ollama_url = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
-    model_name = os.getenv("OLLAMA_MODEL_NAME", "llama2") # Default to llama2, can be configured
+    model_name = os.getenv("OLLAMA_MODEL_NAME", "llama3.1") # Default to llama3.1, can be configured
 
     prompt = f"Figure out, what subject this tweet is about. Only output the word, nothing else.\n\nTweet: {tweet_text}\nSummary:"
 

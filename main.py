@@ -158,12 +158,15 @@ def main():
             # Generate a one-word summary using the local LLM.
             llm_summary = get_tweet_summary(first_tweet_in_thread['full_text'])
             # Add a title to the entry text, using the determined thread category and LLM summary.
-            if category == "My tweet":
-                title = f"A tweet about {llm_summary}"
-            elif category == "My thread":
-                title = f"A thread about {llm_summary}"
+            if llm_summary != "Uncategorized":
+                if category == "My tweet":
+                    title = f"A tweet about {llm_summary}"
+                elif category == "My thread":
+                    title = f"A thread about {llm_summary}"
+                else:
+                    title = f"{category} about {llm_summary}"
             else:
-                title = f"{category} about {llm_summary}"
+                title = f"{category}"
         else:
             # Use the original category-based title if LLM processing is disabled.
             title = f"{category}"
