@@ -22,14 +22,7 @@ def get_thread_category(thread):
 
     is_retweet = first_tweet["full_text"].startswith("RT @")
     is_reply = first_tweet.get("in_reply_to_status_id_str") is not None
-
-    # Check for retweet with comment
-    has_twitter_link = False
-    for url_entity in first_tweet.get("entities", {}).get("urls", []):
-        expanded_url = url_entity.get("expanded_url")
-        if expanded_url and ("twitter.com" in expanded_url or "x.com" in expanded_url):
-            has_twitter_link = True
-            break
+    is_quote_tweet = first_tweet.get("quoted_status_id_str") is not None
 
     # A list of more than one tweet is always a thread you created.
     if len(thread) > 1:
@@ -39,8 +32,8 @@ def get_thread_category(thread):
     if is_retweet:
         return "My retweet"
 
-    if has_twitter_link and not is_reply:
-        return "My retweet with comment"
+    if is_quote_tweet and not is_reply:
+        return "My quote tweet"
 
     if is_reply:
         # If it's a reply and a single tweet, it's a reply to someone else.
@@ -109,7 +102,7 @@ def combine_threads(tweets):
     root_tweets = [t for t in tweets if t['tweet']['id_str'] not in all_child_ids]
 
     # Sort roots to process them in a predictable, chronological order
-    sorted_roots = sorted(root_tweets, key=lambda t: t['tweet']['id_str'])
+    sorted_roots = sorted(root_tweets, key=lambda t: int(t['tweet']['id_str']))
 
     # Build the final list of threads using the relationships we've mapped
     final_threads = []
@@ -123,7 +116,7 @@ def combine_threads(tweets):
 
             # Get children, sort them chronologically, and add to the queue
             children = children_map.get(current_tweet['tweet']['id_str'], [])
-            sorted_children = sorted(children, key=lambda t: t['tweet']['id_str'])
+            sorted_children = sorted(children, key=lambda t: int(t['tweet']['id_str']))
             queue.extend(sorted_children)
         if len(thread) > 0:
             final_threads.append(thread)
@@ -170,13 +163,32 @@ def process_tweet_text_for_markdown_links(tweet):
 
     for media_entity in media_entities:
         tco_url = media_entity.get('url')
-        media_url = media_entity.get('media_url_https')
+        media_type = media_entity.get('type')
 
-        if tco_url and media_url and media_entity.get('type') == 'photo':
-            media_to_process.append({
-                'tco_url': tco_url,
-                'media_url': media_url
-            })
+        if tco_url:
+            if media_type == 'photo':
+                media_url = media_entity.get('media_url_https')
+                if media_url:
+                    media_to_process.append({
+                        'tco_url': tco_url,
+                        'media_url': media_url,
+                        'type': media_type
+                    })
+            elif media_type in ['video', 'animated_gif']:
+                video_info = media_entity.get('video_info')
+                if video_info and 'variants' in video_info:
+                    # Find the video variant with the highest bitrate
+                    best_variant = None
+                    for variant in video_info['variants']:
+                        if 'bitrate' in variant and variant['content_type'] == 'video/mp4':
+                            if not best_variant or variant['bitrate'] > best_variant['bitrate']:
+                                best_variant = variant
+                    if best_variant and best_variant.get('url'):
+                        media_to_process.append({
+                            'tco_url': tco_url,
+                            'media_url': best_variant['url'],
+                            'type': media_type
+                        })
 
 
     # Sort by length of t.co_url in descending order. This is crucial
@@ -202,7 +214,9 @@ def process_tweet_text_for_markdown_links(tweet):
         media_url = media_info['media_url']
         processed_text = re.sub(re.escape(tco_url), '', processed_text)
         # Construct the path to the media file in the archive
-        media_filename = os.path.basename(media_url)
+        media_filename = os.path.basename(media_url).split('?')[0] # Remove query parameters
+        if media_info['type'] in ['video', 'animated_gif']:
+            media_filename = os.path.splitext(media_filename)[0] + '.mp4'
         media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_data['id_str']}-{media_filename}")
         tweet_data['media_files'].append(media_path)
 

@@ -31,7 +31,7 @@ def main():
     random.shuffle(threads)
 
     for i, thread in enumerate(threads):
-        if i > 30:
+        if i > 60:
             break
 
         has_interesting_content = False
@@ -112,6 +112,16 @@ def main():
             # Add a title to the entry text
             title = f"{category}"
             entry_text = f"# {title}\n\n{entry_text}"
+
+            # Add likes, retweets, and original tweet link
+            first_tweet_in_thread = thread[0]['tweet']
+            if int(first_tweet_in_thread["favorite_count"]) > 0:
+                entry_text += f"Likes: {first_tweet_in_thread['favorite_count']}\n"
+            if int(first_tweet_in_thread["retweet_count"]) > 0:
+                entry_text += f"Retweets: {first_tweet_in_thread['retweet_count']}\n"
+
+            tweet_url = f"https://twitter.com/i/web/status/{first_tweet_in_thread['id_str']}"
+            entry_text += f"Original Tweet: {tweet_url}\n"
 
             # Call add_post to create the Day One entry
             add_post(
