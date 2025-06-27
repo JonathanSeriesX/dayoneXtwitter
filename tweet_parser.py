@@ -289,7 +289,9 @@ def process_tweet_text_for_markdown_links(tweet):
         return
 
     links_to_process = []
-    media_to_process = []
+    
+    # Group media by t.co URL to handle galleries correctly.
+    media_by_tco = defaultdict(list)
 
     # Process 'urls' entities (standard links like external websites)
     for url_entity in entities.get('urls', []):
@@ -320,8 +322,7 @@ def process_tweet_text_for_markdown_links(tweet):
             if media_type == 'photo':
                 media_url = media_entity.get('media_url_https')
                 if media_url:
-                    media_to_process.append({
-                        'tco_url': tco_url,
+                    media_by_tco[tco_url].append({
                         'media_url': media_url,
                         'type': media_type
                     })
@@ -336,8 +337,7 @@ def process_tweet_text_for_markdown_links(tweet):
                             if not best_variant or variant['bitrate'] > best_variant['bitrate']:
                                 best_variant = variant
                     if best_variant and best_variant.get('url'):
-                        media_to_process.append({
-                            'tco_url': tco_url,
+                        media_by_tco[tco_url].append({
                             'media_url': best_variant['url'],
                             'type': media_type
                         })
@@ -346,33 +346,41 @@ def process_tweet_text_for_markdown_links(tweet):
     # This is crucial to prevent issues where a shorter t.co URL might be a substring
     # of a longer one, ensuring the longest matches are replaced first.
     links_to_process.sort(key=lambda x: len(x['tco_url']), reverse=True)
-    media_to_process.sort(key=lambda x: len(x['tco_url']), reverse=True)
+    sorted_media_tco_urls = sorted(media_by_tco.keys(), key=len, reverse=True)
 
     processed_text = full_text
     # Replace t.co URLs with Markdown links in the tweet text.
     # re.escape is used to treat special characters in the URL literally, preventing regex errors.
     for link_info in links_to_process:
         tco_url = link_info['tco_url']
+        # If a t.co URL is for media, it will be handled separately.
+        # This check prevents media URLs from being converted to standard Markdown links.
+        if tco_url in media_by_tco:
+            continue
         markdown_link = link_info['markdown_link']
         processed_text = re.sub(re.escape(tco_url), markdown_link, processed_text)
 
     tweet_data['media_files'] = []
-    # Process media entities: remove t.co URLs from text and construct local file paths.
-    for media_info in media_to_process:
-        tco_url = media_info['tco_url']
-        media_url = media_info['media_url']
-        # Remove the t.co URL from the tweet text as it will be replaced by the media attachment.
-        processed_text = re.sub(re.escape(tco_url), '', processed_text)
+    # Process media entities: replace t.co URLs with attachment placeholders and construct local file paths.
+    for tco_url in sorted_media_tco_urls:
+        media_items = media_by_tco[tco_url]
+        num_attachments = len(media_items)
+        # Create a placeholder for each media attachment, e.g., "[{attachment}][{attachment}]" for two.
+        attachment_placeholders = ''.join(['[{attachment}]' for _ in range(num_attachments)])
         
-        # Construct the path to the media file in the local archive.
-        media_filename = os.path.basename(media_url).split('?')[0] # Remove query parameters from filename.
-        # For videos and GIFs, ensure the file extension is .mp4 as they are converted.
-        if media_info['type'] in ['video', 'animated_gif']:
-            media_filename = os.path.splitext(media_filename)[0] + '.mp4'
-        # Construct the absolute path to the media file within the local archive structure.
-        # os.path.dirname(os.path.abspath(__file__)) gets the directory of the current script.
-        media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_data['id_str']}-{media_filename}")
-        tweet_data['media_files'].append(media_path)
+        # Replace the t.co URL with the corresponding attachment placeholders.
+        processed_text = re.sub(re.escape(tco_url), attachment_placeholders, processed_text)
+        
+        for media_info in media_items:
+            media_url = media_info['media_url']
+            # Construct the path to the media file in the local archive.
+            media_filename = os.path.basename(media_url).split('?')[0] # Remove query parameters from filename.
+            # For videos and GIFs, ensure the file extension is .mp4 as they are converted.
+            if media_info['type'] in ['video', 'animated_gif']:
+                media_filename = os.path.splitext(media_filename)[0] + '.mp4'
+            # Construct the absolute path to the media file within the local archive structure.
+            media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_data['id_str']}-{media_filename}")
+            tweet_data['media_files'].append(media_path)
 
     tweet_data['full_text'] = processed_text.strip()
 
