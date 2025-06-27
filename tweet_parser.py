@@ -3,21 +3,44 @@ import re
 import os
 from collections import defaultdict
 
+def _build_case_insensitive_name_map(tweet):
+    """
+    Creates a case-insensitive lookup map from screen_name (handle) to real name.
+    Keys are lowercased for matching.
+    """
+    # Allow both {"tweet": {...}} wrappers and raw tweet dicts
+    tweet_data = tweet.get("tweet", tweet)
+    mentions = tweet_data.get("entities", {}).get("user_mentions", [])
+    # Create the map with lowercased screen names as keys
+    return {m["screen_name"].lower(): m.get("name") for m in mentions}
+
+def _join_names_natural_language(names_list):
+    """
+    Joins a list of names into a natural-language string.
+    e.g., ["A", "B", "C"] -> "A, B, and C"
+    """
+    if not names_list:
+        return ""
+    if len(names_list) == 1:
+        return names_list[0]
+    if len(names_list) == 2:
+        return f"{names_list[0]} and {names_list[1]}"
+    return f"{', '.join(names_list[:-1])}, and {names_list[-1]}"
+
+
 def extract_callouts_inplace(first_tweet):
     """
     If a tweet (not a reply) begins with one or more @handles (callouts),
     this will:
       1. Extract each handle in order.
       2. Strip those leading handles (and any surrounding quotes) from full_text in-place.
-      3. Return a list of display names: real name if found in entities.user_mentions,
+      3. Return a natural-language string of display names: real name if found,
          otherwise "@handle".
     If no leading callouts are found, returns an empty list and leaves full_text untouched.
     """
     tweet = first_tweet.get("tweet", first_tweet)
     text = tweet.get("full_text", "")
-    mentions = tweet.get("entities", {}).get("user_mentions", [])
-    # Build a lookup from screen_name to real name
-    name_map = {m["screen_name"]: m.get("name") for m in mentions}
+    name_map = _build_case_insensitive_name_map(first_tweet)
 
     handles = []
     offset = 0
@@ -33,16 +56,13 @@ def extract_callouts_inplace(first_tweet):
         return []
 
     # Mutate full_text to remove the callouts
-    # tweet["full_text"] = text[offset:].lstrip()
+    tweet["full_text"] = text[offset:].lstrip()
 
-    display = [name_map.get(h) or f"@{h}" for h in handles]
+    # Look up names case-insensitively and fall back to @handle
+    display_names = [name_map.get(h.lower()) or f"@{h}" for h in handles]
 
-    # Build a natural-language join
-    if len(display) == 1:
-        return display[0]
-    if len(display) == 2:
-        return f"{display[0]} and {display[1]}"
-    return f"{', '.join(display[:-1])}, and {display[-1]}"
+    return _join_names_natural_language(display_names)
+
 
 def extract_retweet_inplace(first_tweet):
     """
@@ -60,15 +80,10 @@ def extract_retweet_inplace(first_tweet):
     handle, remainder = m.group(1), m.group(2)
     tweet["full_text"] = remainder  # mutate in place
 
-    # Lookup real name in entities
-    mentions = tweet.get("entities", {}).get("user_mentions", [])
-    name = next(
-        (ment.get("name") for ment in mentions
-         if ment["screen_name"].lower() == handle.lower()),
-        None
-    ) or f"@{handle}"
+    # Use the helper to create the map and perform a case-insensitive lookup
+    name_map = _build_case_insensitive_name_map(first_tweet)
+    return name_map.get(handle.lower()) or f"@{handle}"
 
-    return name
 
 def extract_quote_handle(first_tweet):
     """
@@ -76,7 +91,7 @@ def extract_quote_handle(first_tweet):
     extracts the username, and returns it as @username.
     Returns None if no quote URL is found.
     """
-    # Allow both {"tweet": {...}} wrappers and raw tweet dicts
+    # This function did not need refactoring as it doesn't look up names.
     tweet = first_tweet.get("tweet", first_tweet)
     for url_obj in tweet.get("entities", {}).get("urls", []):
         expanded = url_obj.get("expanded_url", "")
@@ -85,17 +100,17 @@ def extract_quote_handle(first_tweet):
             return f"@{m.group(1)}"
     return None
 
+
 def _get_reply_category(first_tweet):
     """
     Categorizes a reply tweet by extracting all @handles from full_text
     in order, then mapping each to its real name if present in entities,
     or falling back to the @nickname.
     """
+    # Note: The original function was already named with a leading underscore,
+    # indicating it's an internal helper, which is good practice.
     text = first_tweet.get("full_text", "")
-    mentions = first_tweet.get("entities", {}).get("user_mentions", [])
-
-    # Build a lookup from screen_name to real name
-    name_map = {m["screen_name"]: m.get("name") for m in mentions}
+    name_map = _build_case_insensitive_name_map(first_tweet)
 
     # Extract handles in the order they appear, remove duplicates
     handles = []
@@ -107,18 +122,15 @@ def _get_reply_category(first_tweet):
     if not handles and first_tweet.get("in_reply_to_screen_name"):
         handles = [first_tweet["in_reply_to_screen_name"]]
 
-    # Convert each handle to display name
-    displays = [name_map.get(h) or f"@{h}" for h in handles]
+    if not handles:
+        return "Not a reply"  # literally impossible, we should segfault if it happens lol
 
-    # Format according to count
-    n = len(displays)
-    if n > 1:
-        if n == 2:
-            return f"Replied to {displays[0]} and {displays[1]}"
-        return "Replied to " + ", ".join(displays[:-1]) + f", and {displays[-1]}"
-    if n == 1:
-        return f"Replied to {displays[0]}"
-    return "Not a reply" # literally impossible, we should segfault if it happens lol
+    # Look up names case-insensitively
+    display_names = [name_map.get(h.lower()) or f"@{h}" for h in handles]
+
+    # Use the natural language join helper
+    joined_names = _join_names_natural_language(display_names)
+    return f"Replied to {joined_names}"
 
 
 def get_thread_category(thread):
