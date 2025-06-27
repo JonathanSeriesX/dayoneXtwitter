@@ -71,6 +71,21 @@ def extract_retweet_inplace(first_tweet):
 
     return name
 
+def extract_quote_handle(first_tweet):
+    """
+    If the tweet is a quote-tweet, finds the quoted status URL in entities.urls,
+    extracts the username, and returns it as @username.
+    Returns None if no quote URL is found.
+    """
+    # Allow both {"tweet": {...}} wrappers and raw tweet dicts
+    tweet = first_tweet.get("tweet", first_tweet)
+    for url_obj in tweet.get("entities", {}).get("urls", []):
+        expanded = url_obj.get("expanded_url", "")
+        m = re.match(r'https?://(?:www\.)?twitter\.com/([^/]+)/status/\d+', expanded)
+        if m:
+            return f"@{m.group(1)}"
+    return None
+
 def _get_reply_category(first_tweet):
     """
     Categorizes a reply tweet by extracting all @handles from full_text
@@ -132,7 +147,7 @@ def get_thread_category(thread):
 
     # Determine if the tweet is a reply to another tweet
     is_reply = first_tweet.get("in_reply_to_status_id_str") is not None
-    is_callout = not is_reply and first_tweet["full_text"].startswith("@")
+    is_callout = not is_reply and first_tweet["full_text"].startswith("@") or first_tweet["full_text"].startswith(".@")
 
     # Check for Twitter/X links in urls entities that are NOT media URLs.
     # This helps identify quote tweets that are not explicitly marked with 'quoted_status_id_str'.
@@ -165,7 +180,8 @@ def get_thread_category(thread):
     # A single tweet with a non-media Twitter/X link and not a reply is a 'My quote tweet'.
     # This handles cases where 'quoted_status_id_str' might be missing but a quote link exists.
     if has_non_media_twitter_link and not is_reply:
-        return "Quoted a tweet"
+        name = extract_quote_handle(first_tweet)
+        return f"Quoted {name}"
 
     # If it's a reply, determine the specific reply category using the helper function.
     if is_reply:

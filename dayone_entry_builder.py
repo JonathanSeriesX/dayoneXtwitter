@@ -18,7 +18,7 @@ def escape_md(text: str) -> str:
     escaped = "\n".join(lines)
 
     # 2) Escape inline markdown chars
-    for ch in ("*", "_", "`", "|", "!"):
+    for ch in ("*", "`", "|", "!"):
         escaped = escaped.replace(ch, "\\" + ch)
 
     return escaped
@@ -44,10 +44,11 @@ def aggregate_thread_data(thread: list):
             metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
         if rts > 0:
             metrics.append(f"[Retweets: {rts}]({tweet_url}/retweets) 🔁")
+        
+        metrics.append(f"[Open on twitter.com]({tweet_url})")
 
-        if metrics:
-            entry_text += "   ".join(metrics) + "\n"
-        entry_text +=  "___\n"
+        entry_text += "   ".join(metrics) + "\n"
+        entry_text += "___\n"
 
         if tweet_data["entities"].get("hashtags"):
             for hashtag in tweet_data["entities"]["hashtags"]:
@@ -86,21 +87,16 @@ def generate_entry_title(entry_text: str, category: str, thread_length: int):
 
 def build_entry_content(entry_text: str, first_tweet: dict, category: str, title: str):
     """Constructs the final text content for the Day One entry."""
-    tweet_url = f"https://twitter.com/{config.CURRENT_USERNAME}/status/{first_tweet['id_str']}"
-
     if first_tweet.get("in_reply_to_status_id_str"):
         mentions = re.findall(r"@\w+", entry_text)
         rest = re.sub(r"(?:@\w+\s*)+", "", entry_text).strip()
         mentions_str = " ".join(mentions)
-        rest = escape_md(rest)
         entry_text = f"{rest}\n\n"
         reply_to_tweet_id = first_tweet["in_reply_to_status_id_str"]
         reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
         entry_text += f"In [response]({reply_to_url}) to {mentions_str}\n"
 
-    # Add a footer with a direct link to the tweet on twitter.com.
-    entry_text += f"Open on [twitter.com]({tweet_url})\n"
-
+    entry_text = escape_md(entry_text) # anti-Markdown pass
     entry_text = f"# {title}\n\n{entry_text}\n\n"
 
     return entry_text
