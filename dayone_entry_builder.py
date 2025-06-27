@@ -7,9 +7,9 @@ from llm_analyzer import get_tweet_summary
 def escape_md(text: str) -> str:
     # 1) Handle line-start markers
     lines = []
-    for line in text.splitlines():
-        if line.startswith("# "):
-            # escape real Markdown heading, not hashtags like "#AI"
+    for idx, line in enumerate(text.splitlines()):
+        # only escape “# ” headings if not the very first line
+        if line.startswith("# ") and idx != 0:
             line = "\\" + line
         elif line and line[0] in ("-", "+", ">"):
             # escape lists & blockquotes
@@ -96,8 +96,8 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
         reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
         entry_text += f"In [response]({reply_to_url}) to {mentions_str}\n"
 
-    entry_text = escape_md(entry_text) # anti-Markdown pass
-    entry_text = f"# {title}\n\n{entry_text}\n\n"
+    #entry_text = escape_md(entry_text) # anti-Markdown pass
+    entry_text = escape_md(f"# {title}\n\n{entry_text}\n\n") #TODO check if titles aren't broken...
 
     return entry_text
 
