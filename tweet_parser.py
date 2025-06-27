@@ -46,7 +46,7 @@ def extract_callouts_inplace(first_tweet):
     offset = 0
     # Repeatedly match a leading @handle (with optional surrounding quotes/spaces)
     while True:
-        m = re.match(r'\s*["]?\@([A-Za-z0-9_]+)["]?\s*', text[offset:])
+        m = re.match(r'\s*["]?\.?@([A-Za-z0-9_]+)["]?\s*', text[offset:])
         if not m:
             break
         handles.append(m.group(1))
