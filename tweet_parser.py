@@ -56,7 +56,7 @@ def extract_callouts_inplace(first_tweet):
         return []
 
     # Mutate full_text to remove the callouts
-    tweet["full_text"] = text[offset:].lstrip()
+    # tweet["full_text"] = text[offset:].lstrip()
 
     # Look up names case-insensitively and fall back to @handle
     display_names = [name_map.get(h.lower()) or f"@{h}" for h in handles]

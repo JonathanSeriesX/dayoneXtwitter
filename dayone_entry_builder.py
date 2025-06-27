@@ -105,7 +105,7 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
         entry_text = f"{rest}\n\n"
         reply_to_tweet_id = first_tweet["in_reply_to_status_id_str"]
         reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
-        entry_text += f"In [response]({reply_to_url}) to {mentions_str}\n"
+        entry_text += f"In response to [tweet]({reply_to_url}) by {mentions_str}\n"
 
     entry_text = escape_md(f"# {title}\n\n{entry_text}\n\n")
 
