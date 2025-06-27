@@ -1,5 +1,6 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
+import humanize
 
 import config
 from llm_analyzer import get_tweet_summary
@@ -30,9 +31,16 @@ def aggregate_thread_data(thread: list):
     entry_media_files = []
     entry_date_time = None
     entry_coordinate = None
+    first_tweet_date = None
 
-    for tweet_in_thread in thread:
+    for i, tweet_in_thread in enumerate(thread):
         tweet_data = tweet_in_thread['tweet']
+        current_tweet_date = datetime.strptime(tweet_data['created_at'], "%a %b %d %H:%M:%S %z %Y")
+
+        if i == 0:
+            first_tweet_date = current_tweet_date
+            entry_date_time = current_tweet_date
+
         entry_text += tweet_data['full_text'] + "\n\n"
 
         tweet_url = f"https://twitter.com/{config.CURRENT_USERNAME}/status/{tweet_data['id_str']}"
@@ -47,7 +55,16 @@ def aggregate_thread_data(thread: list):
         
         metrics.append(f"[Open on twitter.com]({tweet_url})")
 
-        entry_text += "   ".join(metrics) + "\n"
+        time_diff_str = ""
+        if i > 0 and first_tweet_date:
+            # 1. Calculate the time difference first
+            time_diff = current_tweet_date - first_tweet_date
+
+            # 2. Check if the difference is more than 10 minutes
+            if time_diff > timedelta(minutes=10):
+                time_diff_str = f" (sent {humanize.naturaldelta(time_diff)} later)"
+
+        entry_text += "   ".join(metrics) + time_diff_str + "\n"
         entry_text += "___\n"
 
         if tweet_data["entities"].get("hashtags"):
@@ -58,19 +75,13 @@ def aggregate_thread_data(thread: list):
             for media_file in tweet_data["media_files"]:
                 entry_media_files.append(media_file)
 
-        if not entry_date_time:
-            try:
-                entry_date_time = datetime.strptime(tweet_data['created_at'], "%a %b %d %H:%M:%S %z %Y")
-            except ValueError:
-                print(f"Warning: Could not parse date {tweet_data['created_at']}")
-                entry_date_time = None
-
         if not entry_coordinate and tweet_data.get("coordinates") and tweet_data["coordinates"].get("coordinates"):
             longitude = tweet_data["coordinates"]["coordinates"][0]
             latitude = tweet_data["coordinates"]["coordinates"][1]
             entry_coordinate = (latitude, longitude)
     
     return entry_text, entry_tags, entry_media_files, entry_date_time, entry_coordinate
+
 
 
 
@@ -96,8 +107,7 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
         reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
         entry_text += f"In [response]({reply_to_url}) to {mentions_str}\n"
 
-    #entry_text = escape_md(entry_text) # anti-Markdown pass
-    entry_text = escape_md(f"# {title}\n\n{entry_text}\n\n") #TODO check if titles aren't broken...
+    entry_text = escape_md(f"# {title}\n\n{entry_text}\n\n")
 
     return entry_text
 
