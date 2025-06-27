@@ -87,6 +87,8 @@ def aggregate_thread_data(thread: list):
 
 def generate_entry_title(entry_text: str, category: str, thread_length: int):
     """Generates the title for the Day One entry, optionally using an LLM."""
+    if category.startswith("Replied to"):
+        return category
     if config.PROCESS_TITLES_WITH_LLM and thread_length > 1: # we only process threads
         llm_summary = get_tweet_summary(entry_text)
         # TODO debug
@@ -99,7 +101,7 @@ def generate_entry_title(entry_text: str, category: str, thread_length: int):
 def build_entry_content(entry_text: str, first_tweet: dict, category: str, title: str):
     """Constructs the final text content for the Day One entry."""
     if first_tweet.get("in_reply_to_status_id_str"):
-        mentions = re.findall(r"@\w+", entry_text)
+        mentions = sorted(list(set(re.findall(r"@\w+", entry_text))))
         rest = re.sub(r"(?:@\w+\s*)+", "", entry_text).strip()
         mentions_str = " ".join(mentions)
         entry_text = f"{rest}\n\n"
