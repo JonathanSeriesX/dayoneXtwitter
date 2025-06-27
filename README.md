@@ -27,3 +27,4 @@ Notes:
 * This is only possible on macOS. If you don't have it, find a friend who does or spin up the virtual machine.
 * Media uploads in Day One app are not instant. It's normal to see blank thumbnails at first. They will resolve quickly into actual media.
 * Retweets of long tweets (longer than ~125 symbols) will be cut and will end up with …. I can't do anything about it. For now.
+* The script will keep track of tweets that are already added, in order to avoid duplicate entries in Day One.

@@ -32,29 +32,45 @@ def aggregate_thread_data(thread: list):
     entry_coordinate = None
 
     for tweet_in_thread in thread:
-        entry_text += tweet_in_thread['tweet']['full_text'] + "\n\n"
+        tweet_data = tweet_in_thread['tweet']
+        entry_text += tweet_data['full_text'] + "\n\n"
 
-        if tweet_in_thread["tweet"]["entities"].get("hashtags"):
-            for hashtag in tweet_in_thread["tweet"]["entities"]["hashtags"]:
+        tweet_url = f"https://twitter.com/{config.CURRENT_USERNAME}/status/{tweet_data['id_str']}"
+        metrics = []
+        likes = int(tweet_data["favorite_count"])
+        rts = int(tweet_data["retweet_count"])
+
+        if likes > 0:
+            metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
+        if rts > 0:
+            metrics.append(f"[Retweets: {rts}]({tweet_url}/retweets) 🔁")
+
+        if metrics:
+            entry_text += "   ".join(metrics) + "\n"
+        entry_text +=  "___\n"
+
+        if tweet_data["entities"].get("hashtags"):
+            for hashtag in tweet_data["entities"]["hashtags"]:
                 entry_tags.append(hashtag['text'])
 
-        if tweet_in_thread["tweet"]["media_files"]:
-            for media_file in tweet_in_thread["tweet"]["media_files"]:
+        if tweet_data.get("media_files"):
+            for media_file in tweet_data["media_files"]:
                 entry_media_files.append(media_file)
 
         if not entry_date_time:
             try:
-                entry_date_time = datetime.strptime(tweet_in_thread['tweet']['created_at'], "%a %b %d %H:%M:%S %z %Y")
+                entry_date_time = datetime.strptime(tweet_data['created_at'], "%a %b %d %H:%M:%S %z %Y")
             except ValueError:
-                print(f"Warning: Could not parse date {tweet_in_thread['tweet']['created_at']}")
+                print(f"Warning: Could not parse date {tweet_data['created_at']}")
                 entry_date_time = None
 
-        if not entry_coordinate and tweet_in_thread["tweet"].get("coordinates") and tweet_in_thread["tweet"]["coordinates"].get("coordinates"):
-            longitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][0]
-            latitude = tweet_in_thread["tweet"]["coordinates"]["coordinates"][1]
+        if not entry_coordinate and tweet_data.get("coordinates") and tweet_data["coordinates"].get("coordinates"):
+            longitude = tweet_data["coordinates"]["coordinates"][0]
+            latitude = tweet_data["coordinates"]["coordinates"][1]
             entry_coordinate = (latitude, longitude)
     
     return entry_text, entry_tags, entry_media_files, entry_date_time, entry_coordinate
+
 
 
 def generate_entry_title(entry_text: str, category: str, thread_length: int):
@@ -71,9 +87,6 @@ def generate_entry_title(entry_text: str, category: str, thread_length: int):
 def build_entry_content(entry_text: str, first_tweet: dict, category: str, title: str):
     """Constructs the final text content for the Day One entry."""
     tweet_url = f"https://twitter.com/{config.CURRENT_USERNAME}/status/{first_tweet['id_str']}"
-    metrics = []
-    likes = int(first_tweet["favorite_count"])
-    rts = int(first_tweet["retweet_count"])
 
     if first_tweet.get("in_reply_to_status_id_str"):
         mentions = re.findall(r"@\w+", entry_text)
@@ -85,16 +98,8 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
         reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
         entry_text += f"In [response]({reply_to_url}) to {mentions_str}\n"
 
-    if likes > 0:
-        metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
-    if rts > 0:
-        metrics.append(f"[Retweets: {rts}]({tweet_url}/retweets) 🔁")
-
-    if metrics:
-        entry_text += "   ".join(metrics) + "\n"
-
     # Add a footer with a direct link to the tweet on twitter.com.
-    entry_text += f"___\nOpen on [twitter.com]({tweet_url})\n"
+    entry_text += f"Open on [twitter.com]({tweet_url})\n"
 
     entry_text = f"# {title}\n\n{entry_text}\n\n"
 
