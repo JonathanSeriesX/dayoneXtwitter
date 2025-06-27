@@ -34,7 +34,6 @@ def extract_callouts_inplace(first_tweet):
 
     # Mutate full_text to remove the callouts
     # tweet["full_text"] = text[offset:].lstrip()
-    # TODO do this closer to posting? Or not
 
     display = [name_map.get(h) or f"@{h}" for h in handles]
 
@@ -163,7 +162,7 @@ def get_thread_category(thread):
         tco_url = url_entity.get("url")
         # A link is considered a non-media Twitter link if it points to twitter.com or x.com
         # and its t.co URL is not found among the media t.co URLs.
-        if expanded_url and ("twitter.com" in expanded_url or "x.com" in expanded_url) and tco_url not in media_urls_tco:
+        if expanded_url and ("https://twitter.com" in expanded_url or "https://x.com" in expanded_url) and tco_url not in media_urls_tco:
             has_non_media_twitter_link = True
             break
 
