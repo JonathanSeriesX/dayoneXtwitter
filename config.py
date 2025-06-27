@@ -13,7 +13,7 @@ STATUSES_FILE_PATH = os.path.join(script_dir, "statuses.txt") # Path to store pr
 JOURNAL_NAME = "Twitter Test"
 REPLY_JOURNAL_NAME = "Twitter Replies Test" # Set to a journal name (e.g., "Twitter Replies") to post replies there, or None to ignore them
 CURRENT_USERNAME = "JonathanSeriesX" # Set to yours, otherwise links will break
-MAX_THREADS_TO_PROCESS = 30 # Set to an integer to limit the number of threads processed, or None for no limit
+MAX_THREADS_TO_PROCESS = 200 # Set to an integer to limit the number of threads processed, or None for no limit
 SHUFFLE_MODE = True # Otherwise, we start with the oldest one
 IGNORE_RETWEETS = False
 

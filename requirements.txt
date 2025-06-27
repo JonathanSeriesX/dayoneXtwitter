@@ -1,2 +1,4 @@
 python-dotenv
 requests
+python-dateutil
+humanize
