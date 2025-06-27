@@ -48,6 +48,7 @@ def add_post(
         # The datetime object is formatted to match the CLI's expected string format.
         formatted_date = date_time.strftime("%Y-%m-%d %H:%M:%S")
         command.extend(["--date", formatted_date])
+        command.extend(["-z", "UTC"])
 
     if coordinate:
         # --coordinate <latitude> <longitude>: Sets the geographical coordinates for the entry.
@@ -92,12 +93,14 @@ def _execute_command(command: List[str]) -> bool:
 
         # Check the return code to determine if the command was successful.
         if result.returncode == 0:
-            print("Successfully created Day One entry.")
+            # print("Successfully created Day One entry.")
             # The Day One CLI typically outputs the UUID of the new entry on success.
-            print(f"Output: {result.stdout.strip()}")
+            print(f"Command: {command}")
+            print(f"{result.stdout.strip()}")
             return True
         else:
             # If the command failed, print the exit code and any error messages from stderr.
+            print(f"Command: {command}")
             print(f"Error executing Day One command. Exit Code: {result.returncode}")
             print(f"Error Details: {result.stderr.strip()}")
             return False
