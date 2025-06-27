@@ -118,7 +118,7 @@ def get_target_journal(category: str, tweet_id: str):
             print(f"Skipping reply thread {tweet_id} as REPLY_JOURNAL_NAME is not set.")
             return None
     if category.startswith("Retweet"):
-        if not config.IGNORE_RETWEETS:
+        if config.IGNORE_RETWEETS:
             print(f"Skipping retweet {tweet_id} as IGNORE_RETWEETS is enabled.")
             return None
     return target_journal

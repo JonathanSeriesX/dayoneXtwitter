@@ -3,6 +3,46 @@ import re
 import os
 from collections import defaultdict
 
+def extract_callouts_inplace(first_tweet):
+    """
+    If a tweet (not a reply) begins with one or more @handles (callouts),
+    this will:
+      1. Extract each handle in order.
+      2. Strip those leading handles (and any surrounding quotes) from full_text in-place.
+      3. Return a list of display names: real name if found in entities.user_mentions,
+         otherwise "@handle".
+    If no leading callouts are found, returns an empty list and leaves full_text untouched.
+    """
+    tweet = first_tweet.get("tweet", first_tweet)
+    text = tweet.get("full_text", "")
+    mentions = tweet.get("entities", {}).get("user_mentions", [])
+    # Build a lookup from screen_name to real name
+    name_map = {m["screen_name"]: m.get("name") for m in mentions}
+
+    handles = []
+    offset = 0
+    # Repeatedly match a leading @handle (with optional surrounding quotes/spaces)
+    while True:
+        m = re.match(r'\s*["]?\@([A-Za-z0-9_]+)["]?\s*', text[offset:])
+        if not m:
+            break
+        handles.append(m.group(1))
+        offset += m.end()
+
+    if not handles:
+        return []
+
+    # Mutate full_text to remove the callouts
+    # tweet["full_text"] = text[offset:].lstrip()
+    # TODO do this closer to posting
+
+    # Map to display names
+    display_names = [
+        name_map.get(h) or f"@{h}"
+        for h in handles
+    ]
+    return display_names
+
 def extract_retweet_inplace(first_tweet):
     """
     If full_text starts with RT @handle: or RT "@handle: (or even RT @handle":),
@@ -90,6 +130,7 @@ def get_thread_category(thread):
 
     # Determine if the tweet is a reply to another tweet
     is_reply = first_tweet.get("in_reply_to_status_id_str") is not None
+    is_callout = not is_reply and first_tweet["full_text"].startswith("@")
 
     # Check for Twitter/X links in urls entities that are NOT media URLs.
     # This helps identify quote tweets that are not explicitly marked with 'quoted_status_id_str'.
@@ -127,6 +168,9 @@ def get_thread_category(thread):
     # If it's a reply, determine the specific reply category using the helper function.
     if is_reply:
         return _get_reply_category(first_tweet)
+
+    if is_callout:
+        return f"Callout to {extract_callouts_inplace(first_tweet)}"
 
     # If none of the above conditions are met, it's a standalone tweet.
     return "Tweeted"
