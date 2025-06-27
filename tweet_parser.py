@@ -34,14 +34,16 @@ def extract_callouts_inplace(first_tweet):
 
     # Mutate full_text to remove the callouts
     # tweet["full_text"] = text[offset:].lstrip()
-    # TODO do this closer to posting
+    # TODO do this closer to posting? Or not
 
-    # Map to display names
-    display_names = [
-        name_map.get(h) or f"@{h}"
-        for h in handles
-    ]
-    return display_names
+    display = [name_map.get(h) or f"@{h}" for h in handles]
+
+    # Build a natural-language join
+    if len(display) == 1:
+        return display[0]
+    if len(display) == 2:
+        return f"{display[0]} and {display[1]}"
+    return f"{', '.join(display[:-1])}, and {display[-1]}"
 
 def extract_retweet_inplace(first_tweet):
     """

@@ -37,12 +37,12 @@ def get_tweet_summary(tweet_text: str) -> str:
         summary = result.get("response", "").strip()
         
         # Post-process to ensure it's a single word
-        if summary:
+        #if summary:
             # Take the first word and remove any non-alphanumeric characters
-            summary = summary.split()[0]
-            summary = "".join(filter(str.isalnum, summary))
-            if summary:
-                return summary.capitalize() # Capitalize for better titles
+            #summary = summary.split()[0]
+            #summary = "".join(filter(str.isalnum, summary))
+            #if summary:
+                #return summary.capitalize() # Capitalize for better titles
         
     except requests.exceptions.ConnectionError:
         print(f"Warning: Could not connect to Ollama at {ollama_url}. Is the Ollama server running?")

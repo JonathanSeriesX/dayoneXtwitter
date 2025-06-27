@@ -11,14 +11,14 @@ def escape_md(text: str) -> str:
         if line.startswith("# "):
             # escape real Markdown heading, not hashtags like "#AI"
             line = "\\" + line
-        elif line and line[0] in ("-", "+", "*", ">"):
+        elif line and line[0] in ("-", "+", ">"):
             # escape lists & blockquotes
             line = "\\" + line
         lines.append(line)
     escaped = "\n".join(lines)
 
     # 2) Escape inline markdown chars
-    for ch in ("*", "_", "`", "|", "!", "[", "]", "(", ")"):
+    for ch in ("*", "_", "`", "|", "!"):
         escaped = escaped.replace(ch, "\\" + ch)
 
     return escaped
@@ -59,20 +59,13 @@ def aggregate_thread_data(thread: list):
 
 def generate_entry_title(entry_text: str, category: str, thread_length: int):
     """Generates the title for the Day One entry, optionally using an LLM."""
-    if config.PROCESS_TITLES_WITH_LLM and thread_length > 1:
-        llm_summary = get_tweet_summary(entry_text).lower()
-        if llm_summary != "Uncategorized":
-            if category == "My tweet":
-                title = f"A tweet about {llm_summary}"
-            elif category == "My thread":
-                title = f"A thread about {llm_summary}"
-            else:
-                title = f"{category} about {llm_summary}"
-        else:
-            title = f"{category}"
-    else:
-        title = f"{category}"
-    return title
+    if config.PROCESS_TITLES_WITH_LLM and thread_length > 1: # we only process threads
+        llm_summary = get_tweet_summary(entry_text)
+        # TODO debug
+        print("Summary: " + llm_summary)
+        if llm_summary != "Uncategorized" and llm_summary != "About":
+            return f"A thread {llm_summary}"
+    return category
 
 
 def build_entry_content(entry_text: str, first_tweet: dict, category: str, title: str):
