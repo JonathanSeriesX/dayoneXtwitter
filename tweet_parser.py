@@ -2,6 +2,7 @@ import json
 import re
 import os
 from collections import defaultdict
+from datetime import datetime
 
 def _build_case_insensitive_name_map(tweet):
     """
@@ -243,6 +244,12 @@ def load_tweets(tweet_archive_path):
         else:
             print("Error: JSON data could not be located in file.")
             tweets = []
+
+    for tweet_data in tweets:
+        # Parse the created_at string into a datetime object
+        # Example format: "Fri Mar 21 04:40:00 +0000 2006"
+        created_at_str = tweet_data['tweet']['created_at']
+        tweet_data['tweet']['created_at'] = datetime.strptime(created_at_str, '%a %b %d %H:%M:%S %z %Y').replace(tzinfo=None)
 
     return tweets
 

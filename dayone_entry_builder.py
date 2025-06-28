@@ -35,7 +35,7 @@ def aggregate_thread_data(thread: list):
 
     for i, tweet_in_thread in enumerate(thread):
         tweet_data = tweet_in_thread['tweet']
-        current_tweet_date = datetime.strptime(tweet_data['created_at'], "%a %b %d %H:%M:%S %z %Y")
+        current_tweet_date = tweet_data['created_at']
 
         if i == 0:
             first_tweet_date = current_tweet_date
