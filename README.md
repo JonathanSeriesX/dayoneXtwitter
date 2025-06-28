@@ -48,10 +48,10 @@ Now launch the `main.py` and enjoy! (:
 
 #### Known issues
 
-- Short links to media sites such as `youtu.be` or `puu.sh` are being un-Markdowned by Day One app. I've reached out to the team in hopes they'll fix this.
-- Retweets of long tweets do not contain media; [see example](https://x.com/JonathanSeriesX/status/1436443683642122248). There is no way around it.
+- Some links such as `youtu.be` or `instagram.com` are being un-Markdowned by Day One app. I've reached out to the team in hopes they'll fix this.
+- Retweets of long tweets do not contain media; [see example](https://x.com/JonathanSeriesX/status/1436443683642122248). This is a limitation of Twitter Archive.
+- Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is also a limitation of archive.
 - Media thumbnails in Day One app may appear blank at first; they’ll load once you switch to another window and then back.  
-- Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is a limitation of Twitter Archive.  
 
 #### Plans
 
