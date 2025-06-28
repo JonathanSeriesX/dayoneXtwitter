@@ -29,23 +29,29 @@ The **ultimate** tool to seamlessly import your Twitter archive into the Day One
 8. **Configure**  
    Edit `config.py` to suit your needs.
 
+9. **Important**
+   Set your device time zone to GMT+0 or UTC before launching the script. It's a known bug with dayone2 CLI tool. I've reached out to Automattic, maybe it will be fixed at some point.  
+
+
 Now launch the script and enjoy! (:
 
 ---
 
 #### Notes
 
-- The free version of Day One supports only one attachment per entry. Subscribe for a Premium ¯\_(ツ)_/¯ (there is a free trial option)
+- The free version of Day One supports only one attachment per entry. Subscribe for a Premium ¯\\_(ツ)_/¯ (there is a free trial option)
 - This only works on macOS. If you don't have a Mac, find a friend who does or spin up the virtual machine. 
 - Media thumbnails in Day One app may appear blank at first; they’ll load once you switch to another window and then back.  
 - Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is a limitation of Twitter Archive.  
 - The script tracks which tweets have been added to avoid duplicate posts in Day One.
 
 TODO I don't care what the billionaire thinks
-TODO LLM summaries
-TODO loicensing
-TODO GMT bug
 
+TODO LLM summaries
+
+TODO loicensing
+
+TODO GMT bug
 
 #### Known issues:
 - Short links to media sites such as youtu.be are being un-Markdowned by Day One app. I've reached out to the team in hopes they'll fix this.
