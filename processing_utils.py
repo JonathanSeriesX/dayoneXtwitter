@@ -44,7 +44,17 @@ def print_initial_status():
     return True
 
 
-def load_and_prepare_threads():
+def load_debug_tweet_ids() -> list[str]:
+    """
+    Loads tweet IDs from the tweets_to_debug file.
+    """
+    if not os.path.exists("tweets_to_debug"):
+        return []
+    with open("tweets_to_debug", "r") as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+def load_and_prepare_threads(tweet_ids_to_debug: list[str] | None = None):
     """Loads tweets, expands links, combines threads, and shuffles them."""
     tweets = load_tweets(config.TWEET_ARCHIVE_PATH)
     print(f"Found {len(tweets)} tweets in the archive.")
@@ -53,7 +63,16 @@ def load_and_prepare_threads():
     print("Expanded t.co links inside of tweets.")
     threads = combine_threads(tweets)
     print(f"Converted those tweets into {len(threads)} threads.")
-    random.shuffle(threads)
+
+    if tweet_ids_to_debug:
+        threads = [
+            thread for thread in threads
+            if thread[0]['tweet']['id_str'] in tweet_ids_to_debug
+        ]
+        print(f"Found {len(threads)} threads to debug.")
+    else:
+        random.shuffle(threads)
+
     return threads
 
 
