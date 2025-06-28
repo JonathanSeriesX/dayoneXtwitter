@@ -101,7 +101,15 @@ def generate_entry_title(entry_text: str, category: str, thread_length: int):
 def build_entry_content(entry_text: str, first_tweet: dict, category: str, title: str):
     """Constructs the final text content for the Day One entry."""
     if first_tweet.get("in_reply_to_status_id_str"):
-        mentions = sorted(list(set(re.findall(r"@\w+", entry_text))))
+        # Extract mentions in the order they appear, removing duplicates while preserving order
+        extracted_mentions_in_order = []
+        seen_mentions = set()
+        for match in re.finditer(r"@\w+", entry_text):
+            mention = match.group(0)
+            if mention not in seen_mentions:
+                extracted_mentions_in_order.append(mention)
+                seen_mentions.add(mention)
+        mentions = extracted_mentions_in_order
         rest = re.sub(r"(?:@\w+\s*)+", "", entry_text).strip()
         mentions_str = " ".join(mentions)
         entry_text = f"{rest}\n\n"
