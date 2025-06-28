@@ -179,9 +179,6 @@ def get_thread_category(thread):
             break
 
     # Categorize based on tweet properties, with more specific categories first.
-    # A thread with more than one tweet is always a 'My thread'.
-    if len(thread) > 1:
-        return "Wrote a thread"
 
     # A single tweet starting with "RT @", and not part of a larger thread, is a 'My retweet'.
     if is_retweet:
@@ -194,12 +191,19 @@ def get_thread_category(thread):
         name = extract_quote_handle(first_tweet)
         return f"Quoted {name}"
 
+    if " RT @" in first_tweet["full_text"]:
+        return f"Old-style quote tweet" #TODO
+
     # If it's a reply, determine the specific reply category using the helper function.
     if is_reply:
         return _get_reply_category(first_tweet)
 
     if is_callout:
         return f"Callout to {extract_callouts_inplace(first_tweet)}"
+
+    # A thread with more than one tweet is always a 'My thread'.
+    if len(thread) > 1:
+        return "Wrote a thread"
 
     # If none of the above conditions are met, it's a standalone tweet.
     return "Tweeted"
