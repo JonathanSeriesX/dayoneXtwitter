@@ -15,6 +15,9 @@ def add_post(
     """
     Creates a new entry in the Day One app using the CLI.
 
+    If creating an entry with attachments fails, it automatically retries
+    creating the same entry without the attachments.
+
     Args:
         text: The main body text of the journal entry.
         journal: Optional: The name of the journal to add the entry to.
@@ -62,8 +65,31 @@ def add_post(
         command.append("--attachments")
         command.extend(attachments)
 
-    # Execute the constructed command using a helper function.
-    return _execute_command(command)
+    # First attempt: execute the command as constructed.
+    success = _execute_command(command)
+
+    # If the first attempt failed AND we were trying to add attachments,
+    # retry the command without the attachments.
+    if not success and attachments:
+        print(
+            "\nWarning: Failed to add entry with attachments. Retrying without them...",
+            file=sys.stderr
+        )
+        # Find the position of the '--attachments' flag and slice the command
+        # list to exclude it and all subsequent file paths.
+        try:
+            attachment_index = command.index("--attachments")
+            command_without_attachments = command[:attachment_index]
+            # Execute the command again and return the result of this second attempt.
+            return _execute_command(command_without_attachments)
+        except ValueError:
+            # This case should technically not be reached if `attachments` is truthy,
+            # but it's good practice to handle it.
+            return False # Indicate failure as something went wrong with command construction.
+
+
+    # Return the result of the first attempt if it succeeded or if there were no attachments.
+    return success
 
 
 def _execute_command(command: List[str]) -> bool:
@@ -83,6 +109,7 @@ def _execute_command(command: List[str]) -> bool:
     try:
         # subprocess.run is the recommended way to run external commands.
         # It waits for the command to complete and captures its output.
+        print(f"Executing command: {' '.join(command)}")
         result = subprocess.run(
             command,
             capture_output=True,  # Captures stdout and stderr.
@@ -93,16 +120,13 @@ def _execute_command(command: List[str]) -> bool:
 
         # Check the return code to determine if the command was successful.
         if result.returncode == 0:
-            # print("Successfully created Day One entry.")
             # The Day One CLI typically outputs the UUID of the new entry on success.
-            print(f"Command: {command}")
-            print(f"{result.stdout.strip()}")
+            print(f"Success: {result.stdout.strip()}")
             return True
         else:
             # If the command failed, print the exit code and any error messages from stderr.
-            print(f"Command: {command}")
-            print(f"Error executing Day One command. Exit Code: {result.returncode}")
-            print(f"Error Details: {result.stderr.strip()}")
+            print(f"Error executing Day One command. Exit Code: {result.returncode}", file=sys.stderr)
+            print(f"Error Details: {result.stderr.strip()}", file=sys.stderr)
             return False
 
     except FileNotFoundError:
