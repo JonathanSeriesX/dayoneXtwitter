@@ -17,6 +17,12 @@ MAX_THREADS_TO_PROCESS = 200 # Set to an integer to limit the number of threads 
 SHUFFLE_MODE = True # Otherwise, we start with the oldest one
 IGNORE_RETWEETS = False
 
+# Date range for processing tweets. Only threads started between these two dates will be processed.
+# Format: "DD Month YYYY" (e.g., "21 March 2006")
+START_DATE = "20 March 2006"
+END_DATE = "20 April 2069"
+
+
 # LLM Configuration for Ollama
 PROCESS_TITLES_WITH_LLM = True # Set to True to enable LLM-based title generation
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
