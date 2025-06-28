@@ -29,7 +29,7 @@ The **ultimate** tool to seamlessly import your Twitter archive into the Day One
 8. **Configure**  
    Edit `config.py` to suit your needs.
 
-9. **Important**
+9. **Important**  
    Set your device time zone to GMT+0 or UTC before launching the script. It's a known bug with dayone2 CLI tool. I've reached out to Automattic, maybe it will be fixed at some point.  
 
 
