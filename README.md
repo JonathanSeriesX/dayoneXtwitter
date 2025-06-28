@@ -1,4 +1,4 @@
-## LeavingwithaBang
+## LeavingwithaBang (naming in progress)
 
 The **ultimate** tool to seamlessly import your Twitter archive into the [Day One diary app](https://dayoneapp.com)!
 
@@ -6,7 +6,7 @@ The **ultimate** tool to seamlessly import your Twitter archive into the [Day On
 
 ### Caveats
 
-- The free version of Day One supports only one attachment per entry. Subscribe for a Premium ¯\\_(ツ)\_/¯ (there is a free trial option)
+- Day One’s free plan lets you add just one attachment per entry. Subscribe for a Premium ¯\\_(ツ)\_/¯ (there is a free trial option, feel free to cancel it right afterwards)
 - This script only works on macOS Sonoma and newer, because it relies on [dayone2 CLI tool](https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/). If you don't have a Mac, find a friend who does or spin up the virtual machine.
 
 ---
