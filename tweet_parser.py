@@ -115,21 +115,31 @@ def _get_reply_category(first_tweet):
     text = tweet_data.get("full_text", "")
     name_map = _build_case_insensitive_name_map(first_tweet)
 
-    # Extract handles in the order they appear, remove duplicates
-    handles = []
-    for h in re.findall(r"@([A-Za-z0-9_]+)", text):
-        if h not in handles:
-            handles.append(h)
+    # Extract handles in the order they appear from the full_text
+    # and then map them to their real names.
+    # This ensures the order of names in the "Replied to" string matches the tweet.
+    extracted_handles_in_order = []
+    for match in re.finditer(r"@([A-Za-z0-9_]+)", text):
+        handle = match.group(1)
+        extracted_handles_in_order.append(handle)
 
-    # If no handles found, try the in_reply_to_screen_name
-    if not handles and tweet_data.get("in_reply_to_screen_name"):
-        handles = [tweet_data["in_reply_to_screen_name"]]
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_handles_in_order = []
+    for h in extracted_handles_in_order:
+        if h not in seen:
+            unique_handles_in_order.append(h)
+            seen.add(h)
 
-    if not handles:
-        return "Not a reply"  # literally impossible, we should segfault if it happens lol
+    # If no handles found in text, fall back to in_reply_to_screen_name
+    if not unique_handles_in_order and tweet_data.get("in_reply_to_screen_name"):
+        unique_handles_in_order = [tweet_data["in_reply_to_screen_name"]]
 
-    # Look up names case-insensitively
-    display_names = [name_map.get(h.lower()) or f"@{h}" for h in handles]
+    if not unique_handles_in_order:
+        return "Not a reply"
+
+    # Look up names case-insensitively using the name_map
+    display_names = [name_map.get(h.lower()) or f"@{h}" for h in unique_handles_in_order]
 
     # Use the natural language join helper
     joined_names = _join_names_natural_language(display_names)
