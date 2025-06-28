@@ -8,3 +8,4 @@ tweets_json
 twitter*
 .DS_Store
 statuses.txt
+tweets_to_debug
