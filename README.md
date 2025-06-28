@@ -39,7 +39,7 @@ Now launch the script and enjoy! (:
 
 #### Notes
 
-- The free version of Day One supports only one attachment per entry. Subscribe for a Premium ¯\\_(ツ)_/¯ (there is a free trial option)
+- The free version of Day One supports only one attachment per entry. Subscribe for a Premium ¯\\_(ツ)\_/¯ (there is a free trial option)
 - This only works on macOS. If you don't have a Mac, find a friend who does or spin up the virtual machine. 
 - Media thumbnails in Day One app may appear blank at first; they’ll load once you switch to another window and then back.  
 - Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is a limitation of Twitter Archive.  
