@@ -1,11 +1,20 @@
-## LeavingWithaBang
+## LeavingwithaBang
 
-The **ultimate** tool to seamlessly import your Twitter archive into the Day One diary app on macOS!
+The **ultimate** tool to seamlessly import your Twitter archive into the [Day One diary app](https://dayoneapp.com)!
+
+<img src="pic_related.jpeg" alt="Intro" width="400"/>
+
+### Caveats
+
+- The free version of Day One supports only one attachment per entry. Subscribe for a Premium ¯\\_(ツ)\_/¯ (there is a free trial option)
+- This script only works on macOS Sonoma and newer, because it relies on [dayone2 CLI tool](https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/). If you don't have a Mac, find a friend who does or spin up the virtual machine.
+
+---
 
 ### Usage
 
 1. **Download your Twitter data**  
-   Request your archive from Twitter [here](https://x.com/settings/download_your_data).
+   Request your archive [here](https://x.com/settings/download_your_data).
 
 2. **If you haven’t used Day One before:**  
    - Install Day One app from the [App Store](https://apps.apple.com/tr/app/day-one/id1055511498?mt=12).  
@@ -20,39 +29,34 @@ The **ultimate** tool to seamlessly import your Twitter archive into the Day One
 5. **(Optional) Create a journal for replies**  
    If you want to include replies, add another journal called `Twitter Replies` (or see p.8).
 
-6. **Pause sync**  
-   In Day One preferences → **Sync**, click **Pause Sync**.
+6. **(Optional) Pause sync**  
+   Day One will attempt to sync new posts into cloud automatically. If you're using unreliable or metered connection, you might want to visit Day One preferences → **Sync**, click **Pause sync for 24 hours**.
 
 7. **Extract your archive**  
-   Place the `twitter~.zip` file in your project folder and unzip it.
+   Place the `twitter~.zip` file in this project folder and unzip it.
 
-8. **Configure**  
-   Edit `config.py` to suit your needs.
-
-9. **Important**  
+8. **Important**  
    Set your device time zone to GMT+0 or UTC before launching the script. It's a known bug with dayone2 CLI tool. I've reached out to Automattic, maybe it will be fixed at some point.  
 
+### Config options
 
-Now launch the script and enjoy! (:
+Before launching the script, it's important to set `CURRENT_USERNAME` in `config.py` to your most recent Twitter username. Feel free to adjust other options as well.
+
+Now launch the `main.py` and enjoy! (:
 
 ---
 
-#### Notes
+#### Known issues
 
-- The free version of Day One supports only one attachment per entry. Subscribe for a Premium ¯\\_(ツ)\_/¯ (there is a free trial option)
-- This only works on macOS. If you don't have a Mac, find a friend who does or spin up the virtual machine. 
+- Short links to media sites such as `youtu.be` or `puu.sh` are being un-Markdowned by Day One app. I've reached out to the team in hopes they'll fix this.
+- Retweets of long tweets do not contain media; [see example](https://x.com/JonathanSeriesX/status/1436443683642122248). There is no way around it.
 - Media thumbnails in Day One app may appear blank at first; they’ll load once you switch to another window and then back.  
 - Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is a limitation of Twitter Archive.  
-- The script tracks which tweets have been added to avoid duplicate posts in Day One.
 
-TODO I don't care what the billionaire thinks
+#### Plans
 
-TODO LLM summaries
-
-TODO loicensing
-
-TODO GMT bug
-
-#### Known issues:
-- Short links to media sites such as youtu.be are being un-Markdowned by Day One app. I've reached out to the team in hopes they'll fix this.
-- Retweets of long tweets do not contain media; [see example](https://x.com/JonathanSeriesX/status/1436443683642122248). There is no way around it.
+- LLM-generated thread titles with Ollama
+- loicensing
+- Better packaging
+- Support for threads with more than 30 photos inside (currently broken, Day One limitation)
+- Option for those who deleted their Twitter account (with no links to twitter inside of posts)
