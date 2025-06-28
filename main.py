@@ -4,13 +4,21 @@ from processing_utils import (
     print_initial_status,
     load_and_prepare_threads,
     process_single_thread,
+    load_debug_tweet_ids,
 )
+
 
 def main():
     if not print_initial_status():
         return
 
-    threads = load_and_prepare_threads()
+    debug_tweet_ids = load_debug_tweet_ids()
+    if debug_tweet_ids:
+        print(f"Debug mode: Processing {len(debug_tweet_ids)} specific tweets.")
+        threads = load_and_prepare_threads(tweet_ids_to_debug=debug_tweet_ids)
+    else:
+        threads = load_and_prepare_threads()
+
     processed_tweet_ids = load_processed_tweet_ids()
     print(f"Loaded {len(processed_tweet_ids)} previously processed tweet IDs.")
 
