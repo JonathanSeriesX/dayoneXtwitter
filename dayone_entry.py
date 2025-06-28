@@ -72,7 +72,7 @@ def add_post(
     # retry the command without the attachments.
     if not success and attachments:
         print(
-            "\nWarning: Failed to add entry with attachments. Retrying without them...",
+            "Warning: Failed to add entry with attachments. Retrying without them...",
             file=sys.stderr
         )
         # Find the position of the '--attachments' flag and slice the command

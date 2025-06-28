@@ -357,21 +357,24 @@ def process_tweet_text_for_markdown_links(tweet):
                         'media_url': media_url,
                         'type': media_type
                     })
-            elif media_type in ['video', 'animated_gif']:
-                video_info = media_entity.get('video_info')
-                if video_info and 'variants' in video_info:
-                    # Find the video variant with the highest bitrate for better quality.
-                    best_variant = None
-                    for variant in video_info['variants']:
-                        # Ensure it's an MP4 variant and has a bitrate.
-                        if 'bitrate' in variant and variant['content_type'] == 'video/mp4':
-                            if not best_variant or variant['bitrate'] > best_variant['bitrate']:
-                                best_variant = variant
-                    if best_variant and best_variant.get('url'):
-                        media_by_tco[tco_url].append({
-                            'media_url': best_variant['url'],
-                            'type': media_type
-                        })
+            elif media_type in ('video', 'animated_gif'):
+                info = media_entity.get('video_info', {})
+                variants = info.get('variants', [])
+                # pick only MP4s with a bitrate, converted to int
+                mp4s = []
+                for v in variants:
+                    if v.get('content_type') == 'video/mp4' and 'bitrate' in v:
+                        try:
+                            v_bitrate = int(v['bitrate'])
+                        except (TypeError, ValueError):
+                            continue
+                        mp4s.append((v_bitrate, v['url']))
+                if mp4s:
+                    best_bitrate, best_url = max(mp4s, key=lambda x: x[0])
+                    media_by_tco[tco_url].append({
+                        'media_url': best_url,
+                        'type': media_type
+                    })
 
     # Sort links and media by the length of their t.co URL in descending order.
     # This is crucial to prevent issues where a shorter t.co URL might be a substring
