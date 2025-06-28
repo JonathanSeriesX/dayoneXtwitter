@@ -35,8 +35,13 @@ Now launch the script and enjoy! (:
 
 #### Notes
 
-- The free version of Day One supports only one attachment per entry. Consider using the Premium trial for full media support.  
-- This only works on macOS. If you don’t have a Mac, ask a friend or run a macOS VM.  
-- Initial media thumbnails may appear blank; they’ll load once you switch windows or restart Day One.  
-- Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is a Day One CLI limitation.  
-- The script tracks which tweets have been added to avoid duplicates.
+- The free version of Day One supports only one attachment per entry. Subscribe for a Premium ¯\_(ツ)_/¯ (there is a free trial option)
+- This only works on macOS. If you don't have a Mac, find a friend who does or spin up the virtual machine. 
+- Media thumbnails in Day One app may appear blank at first; they’ll load once you switch to another window and then back.  
+- Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is a limitation of Twitter Archive.  
+- The script tracks which tweets have been added to avoid duplicate posts in Day One.
+
+TODO I don't care what the billionaire thinks
+TODO LLM summaries
+TODO loicensing
+TODO GMT bug

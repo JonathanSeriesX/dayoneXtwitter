@@ -107,9 +107,11 @@ def _get_reply_category(first_tweet):
     in order, then mapping each to its real name if present in entities,
     or falling back to the @nickname.
     """
-    # Note: The original function was already named with a leading underscore,
-    # indicating it's an internal helper, which is good practice.
-    text = first_tweet.get("full_text", "")
+    tweet_data = first_tweet.get('tweet', first_tweet)
+    if not tweet_data.get('in_reply_to_status_id_str'):
+        return "Not a reply"
+
+    text = tweet_data.get("full_text", "")
     name_map = _build_case_insensitive_name_map(first_tweet)
 
     # Extract handles in the order they appear, remove duplicates
@@ -119,8 +121,8 @@ def _get_reply_category(first_tweet):
             handles.append(h)
 
     # If no handles found, try the in_reply_to_screen_name
-    if not handles and first_tweet.get("in_reply_to_screen_name"):
-        handles = [first_tweet["in_reply_to_screen_name"]]
+    if not handles and tweet_data.get("in_reply_to_screen_name"):
+        handles = [tweet_data["in_reply_to_screen_name"]]
 
     if not handles:
         return "Not a reply"  # literally impossible, we should segfault if it happens lol
@@ -300,49 +302,26 @@ def combine_threads(tweets):
 
     return final_threads
 
-def process_tweet_text_for_markdown_links(tweet):
-    """
-    Converts t.co links in a tweet's full_text to Markdown format using expanded URLs.
-    Also extracts media file paths and stores them.
-    Modifies the tweet object in place.
-
-    Args:
-        tweet (dict): The tweet object to process.
-    """
-    tweet_data = tweet.get('tweet')
-    if not tweet_data:
-        return
-
-    full_text = tweet_data.get('full_text')
-    entities = tweet_data.get('entities')
-
-    if not full_text or not entities:
-        return
-
+def _process_url_entities(entities):
     links_to_process = []
-    
-    # Group media by t.co URL to handle galleries correctly.
-    media_by_tco = defaultdict(list)
-
-    # Process 'urls' entities (standard links like external websites)
     for url_entity in entities.get('urls', []):
         tco_url = url_entity.get('url')
         expanded_url = url_entity.get('expanded_url')
         display_url = url_entity.get('display_url')
 
         if tco_url and expanded_url:
-            # Prefer display_url for the visible link text, fallback to expanded_url
             link_text = display_url if display_url else expanded_url
             links_to_process.append({
                 'tco_url': tco_url,
                 'markdown_link': f"[{link_text}]({expanded_url})"
             })
+    return links_to_process
 
-    # Process 'media' entities (links to attached media like photos/videos/gifs)
-    # Prioritize extended_entities for comprehensive media handling as it contains more details.
+
+def _process_media_entities(tweet_data, entities):
+    media_by_tco = defaultdict(list)
     media_entities = tweet_data.get('extended_entities', {}).get('media', [])
     if not media_entities:
-        # Fallback to 'entities' if 'extended_entities' is not present (older tweet formats).
         media_entities = entities.get('media', [])
 
     for media_entity in media_entities:
@@ -360,7 +339,6 @@ def process_tweet_text_for_markdown_links(tweet):
             elif media_type in ('video', 'animated_gif'):
                 info = media_entity.get('video_info', {})
                 variants = info.get('variants', [])
-                # pick only MP4s with a bitrate, converted to int
                 mp4s = []
                 for v in variants:
                     if v.get('content_type') == 'video/mp4' and 'bitrate' in v:
@@ -375,48 +353,72 @@ def process_tweet_text_for_markdown_links(tweet):
                         'media_url': best_url,
                         'type': media_type
                     })
+    return media_by_tco
 
-    # Sort links and media by the length of their t.co URL in descending order.
-    # This is crucial to prevent issues where a shorter t.co URL might be a substring
-    # of a longer one, ensuring the longest matches are replaced first.
-    links_to_process.sort(key=lambda x: len(x['tco_url']), reverse=True)
-    sorted_media_tco_urls = sorted(media_by_tco.keys(), key=len, reverse=True)
 
-    processed_text = full_text
-    # Replace t.co URLs with Markdown links in the tweet text.
-    # re.escape is used to treat special characters in the URL literally, preventing regex errors.
-    for link_info in links_to_process:
+def _replace_links_in_text(text, links, media_map):
+    processed_text = text
+    links.sort(key=lambda x: len(x['tco_url']), reverse=True)
+    for link_info in links:
         tco_url = link_info['tco_url']
-        # If a t.co URL is for media, it will be handled separately.
-        # This check prevents media URLs from being converted to standard Markdown links.
-        if tco_url in media_by_tco:
+        if tco_url in media_map:
             continue
         markdown_link = link_info['markdown_link']
         processed_text = re.sub(re.escape(tco_url), markdown_link, processed_text)
+    return processed_text
 
-    tweet_data['media_files'] = []
-    # Process media entities: replace t.co URLs with attachment placeholders and construct local file paths.
+
+def _replace_media_in_text(text, media_map, tweet_id):
+    processed_text = text
+    media_files = []
+    sorted_media_tco_urls = sorted(media_map.keys(), key=len, reverse=True)
+
     for tco_url in sorted_media_tco_urls:
-        media_items = media_by_tco[tco_url]
-        num_attachments = len(media_items)
-        # Create a placeholder for each media attachment, e.g., "[{attachment}][{attachment}]" for two.
-        attachment_placeholders = ''.join(['[{attachment}]' for _ in range(num_attachments)])
-        
-        # Replace the t.co URL with the corresponding attachment placeholders.
+        media_items = media_map[tco_url]
+        attachment_placeholders = ''.join(['[{attachment}]' for _ in media_items])
         processed_text = re.sub(re.escape(tco_url), attachment_placeholders, processed_text)
-        
+
         for media_info in media_items:
             media_url = media_info['media_url']
-            # Construct the path to the media file in the local archive.
-            media_filename = os.path.basename(media_url).split('?')[0] # Remove query parameters from filename.
-            # For videos and GIFs, ensure the file extension is .mp4 as they are converted.
+            media_filename = os.path.basename(media_url).split('?')[0]
             if media_info['type'] in ['video', 'animated_gif']:
                 media_filename = os.path.splitext(media_filename)[0] + '.mp4'
+            
             # Construct the absolute path to the media file within the local archive structure.
-            media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_data['id_str']}-{media_filename}")
-            tweet_data['media_files'].append(media_path)
+            media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_id}-{media_filename}")
+            media_files.append(media_path)
+            
+    return processed_text, media_files
+
+
+def process_tweet_text_for_markdown_links(tweet):
+    """
+    Converts t.co links in a tweet's full_text to Markdown format using expanded URLs.
+    Also extracts media file paths and stores them.
+    Modifies the tweet object in place.
+
+    Args:
+        tweet (dict): The tweet object to process.
+    """
+    tweet_data = tweet.get('tweet')
+    if not tweet_data:
+        return
+
+    full_text = tweet_data.get('full_text')
+    entities = tweet_data.get('entities')
+    tweet_id = tweet_data.get('id_str')
+
+    if not all([full_text, entities, tweet_id]):
+        return
+
+    links_to_process = _process_url_entities(entities)
+    media_by_tco = _process_media_entities(tweet_data, entities)
+
+    processed_text = _replace_links_in_text(full_text, links_to_process, media_by_tco)
+    processed_text, media_files = _replace_media_in_text(processed_text, media_by_tco, tweet_id)
 
     tweet_data['full_text'] = processed_text.strip()
+    tweet_data['media_files'] = media_files
 
 
 
