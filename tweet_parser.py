@@ -375,12 +375,17 @@ def _process_media_entities(tweet_data, entities):
 
 def _replace_links_in_text(text, links, media_map):
     processed_text = text
+    # First, replace truncated t.co links with [broken link]
+    # This regex specifically targets t.co links followed by an ellipsis
+    processed_text = re.sub(r'https?://t\.co/[A-Za-z0-9]+(?:\.\.\.|…)', '[broken link]', processed_text)
+
     links.sort(key=lambda x: len(x['tco_url']), reverse=True)
     for link_info in links:
         tco_url = link_info['tco_url']
         if tco_url in media_map:
             continue
         markdown_link = link_info['markdown_link']
+        # Ensure we only replace the full, non-truncated t.co links here
         processed_text = re.sub(re.escape(tco_url), markdown_link, processed_text)
     return processed_text
 
