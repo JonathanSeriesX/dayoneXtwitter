@@ -7,14 +7,18 @@ from tweet_parser import load_tweets, combine_threads, process_tweet_text_for_ma
 from dayone_entry_builder import aggregate_thread_data, generate_entry_title, build_entry_content, get_target_journal
 from dayone_entry import add_post
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+STATUSES_FILE_PATH = os.path.join(script_dir, config.STATUSES_FILE_PATH)
+TWEET_ARCHIVE_PATH = os.path.join(script_dir, config.TWEET_ARCHIVE_PATH)
+
 
 def load_processed_tweet_ids() -> set:
     """
     Loads tweet IDs that have already been processed from the statuses file.
     """
     processed_ids = set()
-    if os.path.exists(config.STATUSES_FILE_PATH):
-        with open(config.STATUSES_FILE_PATH, "r") as f:
+    if os.path.exists(STATUSES_FILE_PATH):
+        with open(STATUSES_FILE_PATH, "r") as f:
             for line in f:
                 processed_ids.add(line.strip())
     return processed_ids
@@ -25,8 +29,8 @@ def save_processed_tweet_id(tweet_id: str):
     Saves a tweet ID to the statuses file, indicating it has been processed.
     """
     # Ensure the directory exists before writing the file
-    os.makedirs(os.path.dirname(config.STATUSES_FILE_PATH), exist_ok=True)
-    with open(config.STATUSES_FILE_PATH, "a") as f:
+    os.makedirs(os.path.dirname(STATUSES_FILE_PATH), exist_ok=True)
+    with open(STATUSES_FILE_PATH, "a") as f:
         f.write(f"{tweet_id}\n")
 
 
@@ -38,8 +42,8 @@ def print_initial_status():
     else:
         print("Ignoring replies")
 
-    if not os.path.exists(config.TWEET_ARCHIVE_PATH):
-        print(f"Error: The file {config.TWEET_ARCHIVE_PATH} does not exist.")
+    if not os.path.exists(TWEET_ARCHIVE_PATH):
+        print(f"Error: The file {TWEET_ARCHIVE_PATH} does not exist.")
         return False
     return True
 
@@ -56,7 +60,7 @@ def load_debug_tweet_ids() -> list[str]:
 
 def load_and_prepare_threads(tweet_ids_to_debug: list[str] | None = None):
     """Loads tweets, expands links, combines threads, and shuffles them."""
-    tweets = load_tweets(config.TWEET_ARCHIVE_PATH)
+    tweets = load_tweets(TWEET_ARCHIVE_PATH)
     print(f"Found {len(tweets)} tweets in the archive.")
     for tweet in tweets:
         process_tweet_text_for_markdown_links(tweet)
