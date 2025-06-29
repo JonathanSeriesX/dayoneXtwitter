@@ -19,6 +19,7 @@ OLLAMA_MODEL_NAME = os.getenv(
     "OLLAMA_MODEL_NAME", "llama3.1"
 )
 OLLAMA_PROMPT = (
-    "Figure out, what subject this tweet is about. Deliver very short answer. First word must be in lowercase. "
-    'like "about weather" or "about Formula 1". '
+    "Figure out, what subject this tweet is about. Deliver very short answer, "
+    "like 'about weather' or 'about Formula 1'. "
+    "First word must be in lowercase. No period in the end."
 )  # Tweet content follows afterwards
