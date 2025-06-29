@@ -1,4 +1,4 @@
-## LeavingwithaBang (naming in progress)
+## Twixodus
 
 The **ultimate** tool to seamlessly import your Twitter archive into the [Day One diary app](https://dayoneapp.com)! 
 
@@ -6,10 +6,26 @@ The **ultimate** tool to seamlessly import your Twitter archive into the [Day On
 
 ---
 
+### What's so good about this script?
+
+<img src="pics/threads.png" alt="Intro" width="400"/>
+
+- Automatically classifies pure tweets, threads, retweets, quote-tweets, replies, etc., and acts accordingly
+- Handles threads _beautifully_ and combines them into single, cohesive Day One entries
+- Supports media attachments, hashtags, locations
+- Appends like/retweet count under each tweet 
+
+I've meticulously analysed nearly every edge case to ensure your tweets will render flawlessly in Day One.
+
+<img src="pics/replies.png" alt="Intro" width="400"/>
+
+
+---
+
 ### Caveats
 
-- Day One’s free plan lets you add just one attachment per entry. Subscribe to Premium ¯\\_(ツ)\_/¯ (free trial available, feel free to cancel it right afterwards)
-- This script only works on macOS Sonoma and newer, because it relies on [dayone2 CLI tool](https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/). If you don't have a Mac, find a friend who does or spin up the virtual machine.
+- Day One’s free plan lets you add just one attachment per entry. Subscribe to Premium ¯\\_(ツ)\_/¯ (free trial available, feel free to cancel it right away)
+- This script only works on macOS Sonoma and newer. If you don't have a Mac, find a friend who does or spin up the virtual machine.
 
 ---
 
@@ -32,7 +48,7 @@ The **ultimate** tool to seamlessly import your Twitter archive into the [Day On
    If you want to include replies, add another journal called `Twitter Replies` (or see [config options](#config-options)).
 
 6. **(Optional) Pause sync**  
-   Day One will attempt to sync new posts into cloud automatically. If you're using unreliable or metered connection, you might want to visit Day One preferences → **Sync**, and click **Pause sync for 24 hours**.
+   Day One will attempt to sync new posts into the cloud automatically. If you're using unreliable or metered connection, you might want to visit Day One preferences → **Sync**, and click **Pause sync for 24 hours**.
 
 7. **Extract your archive**  
    Place the `twitter~.zip` file in this project folder and unzip it.
@@ -62,7 +78,7 @@ Feel free to adjust other options as well, such as:
 - Tweet processing date range
 - Option to ignore retweets
 
-**Now execute the `chmod +x ./launch.sh && ./launch.sh` within project folder and enjoy! (:**
+**Now execute `chmod +x ./launch.sh && ./launch.sh` within the project folder and enjoy!**
 
 <img src="pics/chmod.jpg" alt="chmod situation" width="400"/>
 
