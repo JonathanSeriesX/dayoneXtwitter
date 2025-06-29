@@ -24,8 +24,8 @@ def get_tweet_summary(tweet_text: str) -> str:
         "prompt": prompt,
         "stream": False, # We want the full response at once
         "options": {
-            "num_predict": 5, # Limit output to a few tokens for a single word
-            "temperature": 0.1 # Keep it low for more deterministic output
+            "num_predict": 10, # Limit output to a few tokens for a single word
+            "temperature": 0.3 # Keep it low for more deterministic output
         }
     }
 
