@@ -1,6 +1,6 @@
-import glob
 import os
 import random
+from pathlib import Path
 
 import config
 from tweet_parser import load_tweets, combine_threads, process_tweet_text_for_markdown_links, get_thread_category
@@ -8,15 +8,18 @@ from dayone_entry_builder import aggregate_thread_data, generate_entry_title, bu
 from dayone_entry import add_post
 
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-STATUSES_FILE_PATH = os.path.join(script_dir, "processed_tweets.txt")
-
-# find a tweets.js file under twitter-*/data/
-matches = glob.glob(os.path.join(script_dir, "twitter-*", "data", "tweets.js"))
-if not matches:
+root = Path(__file__).resolve().parent
+STATUSES_FILE_PATH = str(root / "processed_tweets.txt")
+# find all tweets.js under twitter-*/data/, then pick the one in the folder
+# with the lexically largest name (i.e. newest YYYY-MM-DD)
+js = max(
+    root.glob("twitter-*/data/tweets.js"),
+    key=lambda p: p.parent.parent.name
+)
+if not js:
     raise FileNotFoundError("Couldn't find twitter-*/data/tweets.js in project folder")
-TWEETS_JS_PATH = matches[0]
-TWEET_ARCHIVE_PATH = os.path.dirname(TWEETS_JS_PATH)  # -> …/twitter-…/data
+TWEETS_JS_PATH = str(js)
+TWEET_ARCHIVE_PATH = str(js.parent)  # -> …/twitter-…/data
 
 def load_processed_tweet_ids() -> set:
     """
@@ -67,6 +70,7 @@ def load_debug_tweet_ids() -> list[str]:
 def load_and_prepare_threads(tweet_ids_to_debug: list[str] | None = None):
     """Loads tweets, expands links, combines threads, and shuffles them."""
     tweets = load_tweets(TWEETS_JS_PATH)
+    print(f"Using archive folder {TWEET_ARCHIVE_PATH}")
     print(f"Found {len(tweets)} tweets in the archive.")
     for tweet in tweets:
         process_tweet_text_for_markdown_links(tweet)
