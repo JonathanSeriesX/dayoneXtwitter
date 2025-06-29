@@ -4,6 +4,8 @@ The **ultimate** tool to seamlessly import your Twitter archive into the [Day On
 
 <img src="pic_related.jpeg" alt="Intro" width="400"/>
 
+---
+
 ### Caveats
 
 - Day One’s free plan lets you add just one attachment per entry. Subscribe for a Premium ¯\\_(ツ)\_/¯ (there is a free trial option, feel free to cancel it right afterwards)
@@ -36,7 +38,17 @@ The **ultimate** tool to seamlessly import your Twitter archive into the [Day On
    Place the `twitter~.zip` file in this project folder and unzip it.
 
 8. **Important**  
-   Set your device time zone to GMT+0 or UTC before launching the script. It's a known bug with dayone2 CLI tool. I've reached out to Automattic, maybe it will be fixed at some point.  
+   Set your device time zone to GMT+0 or UTC before launching the script. It's a known bug with dayone2 CLI tool. I've reached out to Automattic, maybe it will be fixed at some point.
+
+9. **(Optional) enable naming of threads by LLM**
+   ```bash
+   brew install ollama
+   ollama pull llama3.1
+   ollama serve
+   ```
+   - Will produce results such as “a thread about Formula 1“ or “a thread about second-hand shopping“.
+   - Should run fast if you have an M-series processor and 16+ gigs of RAM.
+   - Downloads about 5 gb of data, so be mindful of metered connections.
 
 ### Config options
 
@@ -55,8 +67,6 @@ Now launch the `main.py` and enjoy! (:
 
 #### Plans
 
-- LLM-generated thread titles with Ollama
-- loicensing
 - Better packaging
-- Support for threads with more than 30 photos inside (currently broken, Day One limitation)
-- Option for those who deleted their Twitter account (with no links to twitter inside of posts)
+- Support for threads with more than 30 photos inside (currently broken)
+- Option for those who decided to delete their Twitter account (with no links to twitter inside of posts)

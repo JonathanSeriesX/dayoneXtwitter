@@ -377,7 +377,7 @@ def _replace_links_in_text(text, links, media_map):
     processed_text = text
     # First, replace truncated t.co links with [broken link]
     # This regex specifically targets t.co links followed by an ellipsis
-    processed_text = re.sub(r'https?://t\.co/[A-Za-z0-9]+(?:\.\.\.|…)', '[broken link]', processed_text)
+    processed_text = re.sub(r'https?://t\.co/[A-Za-z0-9]+(?:\.\.\.|…)', '[link truncated]', processed_text)
 
     links.sort(key=lambda x: len(x['tco_url']), reverse=True)
     for link_info in links:

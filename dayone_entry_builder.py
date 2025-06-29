@@ -93,8 +93,8 @@ def generate_entry_title(entry_text: str, category: str, thread_length: int):
         llm_summary = get_tweet_summary(entry_text)
         # TODO debug
         print("Summary: " + llm_summary)
-        if llm_summary != "Uncategorized" and llm_summary != "About":
-            return f"A thread {llm_summary}"
+        if llm_summary != "Uncategorized":
+            return f"Wrote {llm_summary}"
     return category
 
 
