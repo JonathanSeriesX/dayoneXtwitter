@@ -2,7 +2,7 @@
 
 The **ultimate** tool to seamlessly import your Twitter archive into the [Day One diary app](https://dayoneapp.com)! 
 
-<img src="pic_related.jpeg" alt="Intro" width="400"/>
+<img src="pics/twatter.jpg" alt="Intro" width="400"/>
 
 ---
 
