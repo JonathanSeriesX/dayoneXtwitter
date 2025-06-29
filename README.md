@@ -23,7 +23,7 @@ The **ultimate** tool to seamlessly import your Twitter archive into the [Day On
    - Open it and (optionally) sign in.
 
 3. **Install the Day One CLI**  
-   Follow the [instructions](https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/)
+   Follow the [instructions](https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/).
 
 4. **Create a journal for tweets**  
    Go to [dayone://preferences](dayone://preferences), open **Journals**, and add one named `Tweets` (or see [config options](#config-options)).
@@ -62,7 +62,7 @@ Feel free to adjust other options as well, such as:
 - Tweet processing date range
 - Option to ignore retweets
 
-Now execute the `launch.sh` and enjoy! (:
+**Now execute the `./launch.sh` within project folder and enjoy! (:**
 
 ---
 
@@ -78,3 +78,4 @@ Now execute the `launch.sh` and enjoy! (:
 - Better packaging
 - Support for threads with more than 30 photos inside 
   - Day One limitation, but it can be avoided by splitting long threads with many attachments into multiple posts
+- Support for grouping relevant successive tweets into a single post (relevant for 2016 and before, when there were no threads)
