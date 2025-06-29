@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -109,7 +110,8 @@ def _execute_command(command: List[str]) -> bool:
     try:
         # subprocess.run is the recommended way to run external commands.
         # It waits for the command to complete and captures its output.
-        print(f"Executing command: {' '.join(command)}")
+        if os.path.exists("tweets_to_debug"):
+            print(f"Executing command: {' '.join(command)}")
         result = subprocess.run(
             command,
             capture_output=True,  # Captures stdout and stderr.
