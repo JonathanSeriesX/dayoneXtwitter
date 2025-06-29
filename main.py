@@ -46,8 +46,9 @@ def main():
             thread_date = thread[0]['tweet']['created_at'].replace(tzinfo=None) # Remove timezone for comparison
             if start_date <= thread_date <= end_date:
                 filtered_threads.append(thread)
-    
-    print(f"Filtered down to {len(filtered_threads)} threads within the specified date range.")
+
+    if len(threads) != len(filtered_threads):
+        print(f"Filtered down to {len(filtered_threads)} threads within the specified date range.")
 
     for i, thread in enumerate(filtered_threads):
         if config.MAX_THREADS_TO_PROCESS is not None and i >= config.MAX_THREADS_TO_PROCESS:
