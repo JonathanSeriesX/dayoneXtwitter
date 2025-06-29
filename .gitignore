@@ -7,5 +7,5 @@ archive
 tweets_json
 twitter*
 .DS_Store
-statuses.txt
+processed_tweets.txt
 tweets_to_debug

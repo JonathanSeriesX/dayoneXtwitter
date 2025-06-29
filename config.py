@@ -1,8 +1,5 @@
 import os
 
-TWEET_ARCHIVE_PATH = "archive/data/tweets.js"
-STATUSES_FILE_PATH = "statuses.txt" # File storing processed tweet IDs
-
 JOURNAL_NAME = "Tweets"
 REPLY_JOURNAL_NAME = "Twitter Replies"  # Journal for replies, or None to skip replies altogether
 CURRENT_USERNAME = "JonathanSeriesX"  # Set to your current username. Or set to None if you've deleted your Twitter account forever.

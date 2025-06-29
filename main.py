@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 import config
+import processing_utils
 from processing_utils import (
     load_processed_tweet_ids,
     print_initial_status,
@@ -9,7 +10,6 @@ from processing_utils import (
     process_single_thread,
     load_debug_tweet_ids,
 )
-
 
 def main():
     if not print_initial_status():
@@ -19,8 +19,8 @@ def main():
     if debug_tweet_ids:
         print(f"Debug mode: Processing {len(debug_tweet_ids)} specific tweets.")
         threads = load_and_prepare_threads(tweet_ids_to_debug=debug_tweet_ids)
-        if os.path.isfile(config.STATUSES_FILE_PATH):
-            os.remove(config.STATUSES_FILE_PATH)
+        if os.path.isfile(processing_utils.STATUSES_FILE_PATH):
+            os.remove(processing_utils.STATUSES_FILE_PATH)
     else:
         threads = load_and_prepare_threads()
 
@@ -56,8 +56,8 @@ def main():
         process_single_thread(thread, processed_tweet_ids)
 
     if debug_tweet_ids:
-        if os.path.isfile(config.STATUSES_FILE_PATH):
-            os.remove(config.STATUSES_FILE_PATH)
+        if os.path.isfile(processing_utils.STATUSES_FILE_PATH):
+            os.remove(processing_utils.STATUSES_FILE_PATH)
 
 if __name__ == "__main__":
     main()
