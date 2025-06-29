@@ -62,7 +62,9 @@ Feel free to adjust other options as well, such as:
 - Tweet processing date range
 - Option to ignore retweets
 
-**Now execute the `./launch.sh` within project folder and enjoy! (:**
+**Now execute the `chmod +x ./launch.sh && ./launch.sh` within project folder and enjoy! (:**
+
+<img src="pics/chmod.jpg" alt="chmod situation" width="400"/>
 
 ---
 
