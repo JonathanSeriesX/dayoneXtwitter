@@ -1,16 +1,22 @@
+import glob
 import os
 import random
-
 
 import config
 from tweet_parser import load_tweets, combine_threads, process_tweet_text_for_markdown_links, get_thread_category
 from dayone_entry_builder import aggregate_thread_data, generate_entry_title, build_entry_content, get_target_journal
 from dayone_entry import add_post
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-STATUSES_FILE_PATH = os.path.join(script_dir, config.STATUSES_FILE_PATH)
-TWEET_ARCHIVE_PATH = os.path.join(script_dir, config.TWEET_ARCHIVE_PATH)
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+STATUSES_FILE_PATH = os.path.join(script_dir, "processed_tweets.txt")
+
+# find a tweets.js file under twitter-*/data/
+matches = glob.glob(os.path.join(script_dir, "twitter-*", "data", "tweets.js"))
+if not matches:
+    raise FileNotFoundError("Couldn't find twitter-*/data/tweets.js in project folder")
+TWEETS_JS_PATH = matches[0]
+TWEET_ARCHIVE_PATH = os.path.dirname(TWEETS_JS_PATH)  # -> …/twitter-…/data
 
 def load_processed_tweet_ids() -> set:
     """
@@ -42,8 +48,8 @@ def print_initial_status():
     else:
         print("Ignoring replies")
 
-    if not os.path.exists(TWEET_ARCHIVE_PATH):
-        print(f"Error: The file {TWEET_ARCHIVE_PATH} does not exist.")
+    if not os.path.exists(TWEETS_JS_PATH):
+        print(f"Error: The file {TWEETS_JS_PATH} does not exist.")
         return False
     return True
 
@@ -60,7 +66,7 @@ def load_debug_tweet_ids() -> list[str]:
 
 def load_and_prepare_threads(tweet_ids_to_debug: list[str] | None = None):
     """Loads tweets, expands links, combines threads, and shuffles them."""
-    tweets = load_tweets(TWEET_ARCHIVE_PATH)
+    tweets = load_tweets(TWEETS_JS_PATH)
     print(f"Found {len(tweets)} tweets in the archive.")
     for tweet in tweets:
         process_tweet_text_for_markdown_links(tweet)

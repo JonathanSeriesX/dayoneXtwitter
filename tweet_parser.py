@@ -4,6 +4,9 @@ import os
 from collections import defaultdict
 from datetime import datetime
 
+import processing_utils
+
+
 def _build_case_insensitive_name_map(tweet):
     """
     Creates a case-insensitive lookup map from screen_name (handle) to real name.
@@ -407,7 +410,7 @@ def _replace_media_in_text(text, media_map, tweet_id):
                 media_filename = os.path.splitext(media_filename)[0] + '.mp4'
             
             # Construct the absolute path to the media file within the local archive structure.
-            media_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'archive', 'data', 'tweets_media', f"{tweet_id}-{media_filename}")
+            media_path = os.path.join(processing_utils.TWEET_ARCHIVE_PATH, 'tweets_media', f"{tweet_id}-{media_filename}")
             media_files.append(media_path)
             
     return processed_text, media_files
