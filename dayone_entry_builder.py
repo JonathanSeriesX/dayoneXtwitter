@@ -42,18 +42,23 @@ def aggregate_thread_data(thread: list):
             entry_date_time = current_tweet_date
 
         entry_text += tweet_data['full_text'] + "\n\n"
-
-        tweet_url = f"https://twitter.com/{config.CURRENT_USERNAME}/status/{tweet_data['id_str']}"
         metrics = []
         likes = int(tweet_data["favorite_count"])
         rts = int(tweet_data["retweet_count"])
 
-        if likes > 0:
-            metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
-        if rts > 0:
-            metrics.append(f"[Retweets: {rts}]({tweet_url}/retweets) 🔁")
-        
-        metrics.append(f"[Open on twitter.com]({tweet_url})")
+        if config.CURRENT_USERNAME:
+            tweet_url = f"https://twitter.com/{config.CURRENT_USERNAME}/status/{tweet_data['id_str']}"
+
+            if likes > 0:
+                metrics.append(f"[Likes: {likes}]({tweet_url}/likes) ⭐️")
+            if rts > 0:
+                metrics.append(f"[Retweets: {rts}]({tweet_url}/retweets) 🔁")
+            metrics.append(f"[Open on twitter.com]({tweet_url})")
+        else:
+            if likes > 0:
+                metrics.append(f"Likes: {likes} ⭐️")
+            if rts > 0:
+                metrics.append(f"Retweets: {rts} 🔁")
 
         time_diff_str = ""
         if i > 0 and first_tweet_date:
