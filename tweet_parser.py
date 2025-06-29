@@ -99,7 +99,10 @@ def extract_quote_handle(first_tweet):
     tweet = first_tweet.get("tweet", first_tweet)
     for url_obj in tweet.get("entities", {}).get("urls", []):
         expanded = url_obj.get("expanded_url", "")
-        m = re.match(r'https?://(?:www\.)?twitter\.com/([^/]+)/status/\d+', expanded)
+        m = re.match(
+            r'https?://(?:www\.)?(?:twitter\.com|x\.com)/([^/]+)/status/\d+',
+            expanded
+        )
         if m:
             return f"@{m.group(1)}"
     return None
