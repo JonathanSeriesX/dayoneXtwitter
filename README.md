@@ -6,9 +6,21 @@ The **ultimate** tool to seamlessly import your Twitter archive into the [Day On
 
 ---
 
-### What's so good about this script?
+### What for?
 
-<img src="pics/threads.png" alt="Intro" width="400"/>
+By importing your Twitter archive into Day One with this script, you can:
+
+- Browse your entire tweet history offline with lightning-fast random access
+- Rediscover what you posted “on this day“ in past years—like [Timehop](https://www.timehop.com), but with no limitations
+- Browse all your tweeted photos and videos in a sleek, organized gallery
+- Perform full-text searches that actually work
+- - Easily purge any unwanted [kompromat](https://en.wikipedia.org/wiki/Kompromat) from your old tweets
+
+<img src="pics/replies.png" alt="Intro" width="600"/>
+
+---
+
+### What's so good about this script?
 
 - Automatically classifies pure tweets, threads, retweets, quote-tweets, replies, etc., and acts accordingly
 - Handles threads _beautifully_ and combines them into single, cohesive Day One entries
@@ -17,8 +29,7 @@ The **ultimate** tool to seamlessly import your Twitter archive into the [Day On
 
 I've meticulously analysed nearly every edge case to ensure your tweets will render flawlessly in Day One.
 
-<img src="pics/replies.png" alt="Intro" width="400"/>
-
+<img src="pics/threads.png" alt="Intro" width="600"/>
 
 ---
 
@@ -84,11 +95,20 @@ Feel free to adjust other options as well, such as:
 
 ---
 
+### 🥺👉👈
+
+If you find this useful, please consider supporting me: 
+
+- [Buy me a coffee](https://coff.ee/jonathunky)
+- USDT TRC20: `TKa6wmqpLvMQwacU1wnPgFWZHFaDRV9jFs`
+
+---
+
 ### Known issues
 
 - Some links (e.g. `youtu.be`, `instagram.com`) are being un-Markdowned by Day One app. I've reached out to Automattic about this, too.
 - Retweets of long tweets do not contain media; [see example](https://x.com/JonathanSeriesX/status/1436443683642122248). This is a limitation of Twitter Archive.
-- Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is also a limitation of archive itself.
+- Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is also a limitation of the archive itself.
 - Media thumbnails in Day One app may appear blank at first; they’ll load once you switch to another window and then back.  
 
 ### Plans
