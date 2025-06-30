@@ -1,6 +1,6 @@
 ## Twixodus
 
-The **ultimate** tool to seamlessly import your Twitter archive into the [Day One diary app](https://dayoneapp.com)! 
+The **ultimate** tool to seamlessly import your Twitter archive into the [Day One journaling app](https://dayoneapp.com)! 
 
 <img src="pics/twatter.jpg" alt="Intro" width="400"/>
 
@@ -22,8 +22,8 @@ By importing your Twitter archive into Day One with this script, you can:
 
 ### What's so good about this script?
 
-- Automatically classifies pure tweets, threads, retweets, quote-tweets, replies, etc., and acts accordingly
-- Handles threads _beautifully_ and combines them into single, cohesive Day One entries
+- Beautifully classifies pure tweets, threads, retweets, quote-tweets, replies, etc., and acts accordingly
+- Handles threads _gracefully_ and combines them into single, cohesive Day One entries
 - Supports media attachments, hashtags, locations
 - Appends like/retweet count under each tweet 
 
