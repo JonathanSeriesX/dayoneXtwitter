@@ -14,7 +14,7 @@ By importing your Twitter archive into Day One with this script, you can:
 - Rediscover what you posted “on this day“ in past years—like [Timehop](https://www.timehop.com), but with no limitations
 - Browse all your tweeted photos and videos in a sleek, organized gallery
 - Perform full-text searches that actually work
-- - Easily purge any unwanted [kompromat](https://en.wikipedia.org/wiki/Kompromat) from your old tweets
+  - Easily purge any unwanted [kompromat](https://en.wikipedia.org/wiki/Kompromat) from your old tweets
 
 <img src="pics/threads.png" alt="Intro" width="600"/>
 
