@@ -111,7 +111,7 @@ If you find this useful, please consider supporting me:
 - Retweets longer than ~125 characters will be truncated with an ellipsis (`…`); this is also a limitation of the archive itself.
 - Media thumbnails in Day One app may appear blank at first; they’ll load once you switch to another window and then back.  
 
-### Plans
+### Plans (if the project gains traction and/or I have lots of spare time)
 
-- Better packaging
-- Support for grouping relevant successive tweets into a single post (relevant for 2016 and before, when there were no threads)
+- Better packaging / GUI application
+- Support for grouping relevant successive tweets into a single post (relevant for tweets posted before 2017, as there were no threads back then)
