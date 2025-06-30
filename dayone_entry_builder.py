@@ -96,7 +96,6 @@ def generate_entry_title(entry_text: str, category: str, thread_length: int):
         return category
     if config.PROCESS_TITLES_WITH_LLM and thread_length > 1: # we only process threads
         llm_summary = get_tweet_summary(entry_text)
-        # TODO debug
         print("Summary: " + llm_summary)
         if llm_summary != "Uncategorized":
             return f"Wrote {llm_summary}"

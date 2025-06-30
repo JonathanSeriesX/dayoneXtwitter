@@ -66,17 +66,21 @@ def extract_callouts_inplace(first_tweet):
 
     return _join_names_natural_language(display_names)
 
-
 def extract_retweet_inplace(first_tweet):
     """
-    If full_text starts with RT @handle: or RT "@handle: (or even RT @handle":),
-    strips that prefix off full_text in-place and returns the retweeted user's
-    name (or @handle if not in entities). Returns None if no RT found.
+    If full_text contains "RT @handle: ..." (or variations with quotes),
+    strips the text to just the content after that prefix and returns the
+    retweeted user's name (or @handle if not in entities). The first
+    such match is used. Returns None if no RT found.
     """
     tweet = first_tweet.get("tweet", first_tweet)
     text = tweet.get("full_text", "")
-    # Match RT, optional quote before/after handle, then colon
-    m = re.match(r'^RT\s+["]?\@([A-Za-z0-9_]+)["]?:\s*(.*)', text, re.DOTALL)
+
+    # Use re.search() to find the pattern anywhere in the string.
+    # Add a word boundary (\b) before RT to ensure we don't match it as
+    # part of another word (e.g., "DIRT"). The required space (\s+)
+    # after RT prevents matching "RT."
+    m = re.search(r'\bRT\s+["]?\@([A-Za-z0-9_]+)["]?:\s*(.*)', text, re.DOTALL)
     if not m:
         return None
 
@@ -210,7 +214,8 @@ def get_thread_category(thread):
         return f"Quoted {name}"
 
     if " RT @" in first_tweet["full_text"]:
-        return f"Old-style quote tweet" #TODO
+        name = extract_quote_handle(first_tweet)
+        return f"Quoted {name}"
 
     # If it's a reply, determine the specific reply category using the helper function.
     if is_reply:
