@@ -6,6 +6,7 @@ from datetime import datetime
 
 import processing_utils
 
+
 def _build_case_insensitive_name_map(tweet):
     """
     Creates a case-insensitive lookup map from screen_name (handle) to real name.
@@ -16,6 +17,7 @@ def _build_case_insensitive_name_map(tweet):
     mentions = tweet_data.get("entities", {}).get("user_mentions", [])
     # Create the map with lowercased screen names as keys
     return {m["screen_name"].lower(): m.get("name") for m in mentions}
+
 
 def _join_names_natural_language(names_list):
     """
@@ -66,6 +68,7 @@ def extract_callouts_inplace(first_tweet):
 
     return _join_names_natural_language(display_names)
 
+
 def extract_retweet_inplace(first_tweet):
     """
     If full_text contains "RT @handle: ..." (or variations with quotes),
@@ -103,8 +106,7 @@ def extract_quote_handle(first_tweet):
     for url_obj in tweet.get("entities", {}).get("urls", []):
         expanded = url_obj.get("expanded_url", "")
         m = re.match(
-            r'https?://(?:www\.)?(?:twitter\.com|x\.com)/([^/]+)/status/\d+',
-            expanded
+            r"https?://(?:www\.)?(?:twitter\.com|x\.com)/([^/]+)/status/\d+", expanded
         )
         if m:
             return f"@{m.group(1)}"
@@ -117,8 +119,8 @@ def _get_reply_category(first_tweet):
     in order, then mapping each to its real name if present in entities,
     or falling back to the @nickname.
     """
-    tweet_data = first_tweet.get('tweet', first_tweet)
-    if not tweet_data.get('in_reply_to_status_id_str'):
+    tweet_data = first_tweet.get("tweet", first_tweet)
+    if not tweet_data.get("in_reply_to_status_id_str"):
         return "Not a reply"
 
     text = tweet_data.get("full_text", "")
@@ -148,7 +150,9 @@ def _get_reply_category(first_tweet):
         return "Not a reply"
 
     # Look up names case-insensitively using the name_map
-    display_names = [name_map.get(h.lower()) or f"@{h}" for h in unique_handles_in_order]
+    display_names = [
+        name_map.get(h.lower()) or f"@{h}" for h in unique_handles_in_order
+    ]
 
     # Use the natural language join helper
     joined_names = _join_names_natural_language(display_names)
@@ -169,34 +173,50 @@ def get_thread_category(thread):
         str: A string describing the category of the thread.
     """
     if not thread:
-        return "Empty threat" # again, we should just segfault at this point
+        return "Empty threat"  # again, we should just segfault at this point
 
     # The first tweet in the thread is used to determine its category.
     first_tweet_obj = thread[0]
     first_tweet = first_tweet_obj["tweet"]
 
     # Determine if the tweet is a direct retweet (starts with "RT @")
-    is_retweet = first_tweet["full_text"].startswith("RT @") or first_tweet["full_text"].startswith("RT \"@")
+    is_retweet = first_tweet["full_text"].startswith("RT @") or first_tweet[
+        "full_text"
+    ].startswith('RT "@')
 
     # Determine if the tweet is a reply to another tweet
     is_reply = first_tweet.get("in_reply_to_status_id_str") is not None
-    is_callout = not is_reply and first_tweet["full_text"].startswith("@") or first_tweet["full_text"].startswith(".@")
+    is_callout = (
+        not is_reply
+        and first_tweet["full_text"].startswith("@")
+        or first_tweet["full_text"].startswith(".@")
+    )
 
     # Check for Twitter/X links in urls entities that are NOT media URLs.
     # This helps identify quote tweets that are not explicitly marked with 'quoted_status_id_str'.
     has_non_media_twitter_link = False
     # Collect t.co URLs from media entities to exclude them from general URL checks.
     # This prevents media links from being incorrectly identified as quote tweets.
-    media_urls_tco = {m.get('url') for m in first_tweet.get('extended_entities', {}).get('media', [])}
+    media_urls_tco = {
+        m.get("url") for m in first_tweet.get("extended_entities", {}).get("media", [])
+    }
     if not media_urls_tco:
-        media_urls_tco = {m.get('url') for m in first_tweet.get('entities', {}).get('media', [])}
+        media_urls_tco = {
+            m.get("url") for m in first_tweet.get("entities", {}).get("media", [])
+        }
 
     for url_entity in first_tweet.get("entities", {}).get("urls", []):
         expanded_url = url_entity.get("expanded_url")
         tco_url = url_entity.get("url")
         # A link is considered a non-media Twitter link if it points to twitter.com or x.com
         # and its t.co URL is not found among the media t.co URLs.
-        if expanded_url and ("https://twitter.com" in expanded_url or "https://x.com" in expanded_url) and tco_url not in media_urls_tco:
+        if (
+            expanded_url
+            and (
+                "https://twitter.com" in expanded_url or "https://x.com" in expanded_url
+            )
+            and tco_url not in media_urls_tco
+        ):
             has_non_media_twitter_link = True
             break
 
@@ -231,6 +251,7 @@ def get_thread_category(thread):
     # If none of the above conditions are met, it's a standalone tweet.
     return "Tweeted"
 
+
 def load_tweets(tweet_archive_path):
     """
     Loads tweets from the Twitter archive JSON file.
@@ -250,9 +271,7 @@ def load_tweets(tweet_archive_path):
         # Locate the first occurrence of '[' to find the start of the JSON array
         start_index = content.find("[")
         if start_index != -1:
-            json_content = content[
-                start_index:
-            ].strip()  # Extract and strip whitespace
+            json_content = content[start_index:].strip()  # Extract and strip whitespace
             try:
                 tweets = json.loads(json_content)
             except json.JSONDecodeError as e:
@@ -268,17 +287,23 @@ def load_tweets(tweet_archive_path):
     for tweet_data in tweets:
         # Parse the created_at string into a datetime object
         # Example format: "Fri Mar 21 04:40:00 +0000 2006"
-        created_at_str = tweet_data['tweet']['created_at']
-        tweet_data['tweet']['created_at'] = datetime.strptime(created_at_str, '%a %b %d %H:%M:%S %z %Y').replace(tzinfo=None)
+        created_at_str = tweet_data["tweet"]["created_at"]
+        tweet_data["tweet"]["created_at"] = datetime.strptime(
+            created_at_str, "%a %b %d %H:%M:%S %z %Y"
+        ).replace(tzinfo=None)
 
     return tweets
+
 
 def _count_media(tweet):
     """Counts the number of media items in a single tweet."""
     # 'extended_entities' is preferred as it includes all media, even in quote tweets.
     # Fall back to 'entities' if it's not present.
-    entities = tweet['tweet'].get('extended_entities', tweet['tweet'].get('entities', {}))
-    return len(entities.get('media', []))
+    entities = tweet["tweet"].get(
+        "extended_entities", tweet["tweet"].get("entities", {})
+    )
+    return len(entities.get("media", []))
+
 
 def combine_threads(tweets, media_limit=26):
     """
@@ -298,20 +323,20 @@ def combine_threads(tweets, media_limit=26):
               chronologically ordered thread or thread segment.
     """
     # --- Step 1: Initial setup (same as before) ---
-    tweet_by_id = {tweet['tweet']['id_str']: tweet for tweet in tweets}
+    tweet_by_id = {tweet["tweet"]["id_str"]: tweet for tweet in tweets}
     children_map = defaultdict(list)
     all_child_ids = set()
 
     for tweet in tweets:
-        parent_id = tweet['tweet'].get('in_reply_to_status_id_str')
+        parent_id = tweet["tweet"].get("in_reply_to_status_id_str")
         if parent_id and parent_id in tweet_by_id:
             # Only consider replies where the parent tweet is also in our archive
             children_map[parent_id].append(tweet)
-            all_child_ids.add(tweet['tweet']['id_str'])
+            all_child_ids.add(tweet["tweet"]["id_str"])
 
     # --- Step 2: Identify and sort initial root tweets ---
-    root_tweets = [t for t in tweets if t['tweet']['id_str'] not in all_child_ids]
-    sorted_roots = sorted(root_tweets, key=lambda t: int(t['tweet']['id_str']))
+    root_tweets = [t for t in tweets if t["tweet"]["id_str"] not in all_child_ids]
+    sorted_roots = sorted(root_tweets, key=lambda t: int(t["tweet"]["id_str"]))
 
     # --- Step 3: Build threads with splitting logic ---
     final_threads = []
@@ -321,7 +346,7 @@ def combine_threads(tweets, media_limit=26):
     for root in sorted_roots:
         # If this "root" was already processed as part of another thread that got
         # split, skip it.
-        if root['tweet']['id_str'] in processed_ids:
+        if root["tweet"]["id_str"] in processed_ids:
             continue
 
         # This queue will hold all tweets in the conversation chain starting from the root.
@@ -341,7 +366,9 @@ def combine_threads(tweets, media_limit=26):
                 # SPLIT CONDITION:
                 # If the segment is not empty and adding the next tweet would exceed the limit.
                 # A non-empty check is vital to ensure a tweet with many media files can start its own thread.
-                if current_segment and (media_count_in_segment + media_in_next_tweet > media_limit):
+                if current_segment and (
+                    media_count_in_segment + media_in_next_tweet > media_limit
+                ):
                     # Stop building this segment. The `next_tweet` will become the
                     # start of the next segment in the next outer loop iteration.
                     break
@@ -350,12 +377,14 @@ def combine_threads(tweets, media_limit=26):
                 current_tweet = super_thread_queue.popleft()
 
                 current_segment.append(current_tweet)
-                processed_ids.add(current_tweet['tweet']['id_str'])
+                processed_ids.add(current_tweet["tweet"]["id_str"])
                 media_count_in_segment += _count_media(current_tweet)
 
                 # Find its children, sort them, and add them to the main queue for processing.
-                children = children_map.get(current_tweet['tweet']['id_str'], [])
-                sorted_children = sorted(children, key=lambda t: int(t['tweet']['id_str']))
+                children = children_map.get(current_tweet["tweet"]["id_str"], [])
+                sorted_children = sorted(
+                    children, key=lambda t: int(t["tweet"]["id_str"])
+                )
                 super_thread_queue.extend(sorted_children)
 
             # Add the completed segment to our final list of threads.
@@ -364,57 +393,55 @@ def combine_threads(tweets, media_limit=26):
 
     return final_threads
 
+
 def _process_url_entities(entities):
     links_to_process = []
-    for url_entity in entities.get('urls', []):
-        tco_url = url_entity.get('url')
-        expanded_url = url_entity.get('expanded_url')
-        display_url = url_entity.get('display_url')
+    for url_entity in entities.get("urls", []):
+        tco_url = url_entity.get("url")
+        expanded_url = url_entity.get("expanded_url")
+        display_url = url_entity.get("display_url")
 
         if tco_url and expanded_url:
             link_text = display_url if display_url else expanded_url
-            links_to_process.append({
-                'tco_url': tco_url,
-                'markdown_link': f"[{link_text}]({expanded_url})"
-            })
+            links_to_process.append(
+                {"tco_url": tco_url, "markdown_link": f"[{link_text}]({expanded_url})"}
+            )
     return links_to_process
 
 
 def _process_media_entities(tweet_data, entities):
     media_by_tco = defaultdict(list)
-    media_entities = tweet_data.get('extended_entities', {}).get('media', [])
+    media_entities = tweet_data.get("extended_entities", {}).get("media", [])
     if not media_entities:
-        media_entities = entities.get('media', [])
+        media_entities = entities.get("media", [])
 
     for media_entity in media_entities:
-        tco_url = media_entity.get('url')
-        media_type = media_entity.get('type')
+        tco_url = media_entity.get("url")
+        media_type = media_entity.get("type")
 
         if tco_url:
-            if media_type == 'photo':
-                media_url = media_entity.get('media_url_https')
+            if media_type == "photo":
+                media_url = media_entity.get("media_url_https")
                 if media_url:
-                    media_by_tco[tco_url].append({
-                        'media_url': media_url,
-                        'type': media_type
-                    })
-            elif media_type in ('video', 'animated_gif'):
-                info = media_entity.get('video_info', {})
-                variants = info.get('variants', [])
+                    media_by_tco[tco_url].append(
+                        {"media_url": media_url, "type": media_type}
+                    )
+            elif media_type in ("video", "animated_gif"):
+                info = media_entity.get("video_info", {})
+                variants = info.get("variants", [])
                 mp4s = []
                 for v in variants:
-                    if v.get('content_type') == 'video/mp4' and 'bitrate' in v:
+                    if v.get("content_type") == "video/mp4" and "bitrate" in v:
                         try:
-                            v_bitrate = int(v['bitrate'])
+                            v_bitrate = int(v["bitrate"])
                         except (TypeError, ValueError):
                             continue
-                        mp4s.append((v_bitrate, v['url']))
+                        mp4s.append((v_bitrate, v["url"]))
                 if mp4s:
                     best_bitrate, best_url = max(mp4s, key=lambda x: x[0])
-                    media_by_tco[tco_url].append({
-                        'media_url': best_url,
-                        'type': media_type
-                    })
+                    media_by_tco[tco_url].append(
+                        {"media_url": best_url, "type": media_type}
+                    )
     return media_by_tco
 
 
@@ -422,14 +449,16 @@ def _replace_links_in_text(text, links, media_map):
     processed_text = text
     # First, replace truncated t.co links with [broken link]
     # This regex specifically targets t.co links followed by an ellipsis
-    processed_text = re.sub(r'https?://t\.co/[A-Za-z0-9]+(?:\.\.\.|…)', '[link truncated]', processed_text)
+    processed_text = re.sub(
+        r"https?://t\.co/[A-Za-z0-9]+(?:\.\.\.|…)", "[link truncated]", processed_text
+    )
 
-    links.sort(key=lambda x: len(x['tco_url']), reverse=True)
+    links.sort(key=lambda x: len(x["tco_url"]), reverse=True)
     for link_info in links:
-        tco_url = link_info['tco_url']
+        tco_url = link_info["tco_url"]
         if tco_url in media_map:
             continue
-        markdown_link = link_info['markdown_link']
+        markdown_link = link_info["markdown_link"]
         # Ensure we only replace the full, non-truncated t.co links here
         processed_text = re.sub(re.escape(tco_url), markdown_link, processed_text)
     return processed_text
@@ -442,19 +471,25 @@ def _replace_media_in_text(text, media_map, tweet_id):
 
     for tco_url in sorted_media_tco_urls:
         media_items = media_map[tco_url]
-        attachment_placeholders = ''.join(['[{attachment}]' for _ in media_items])
-        processed_text = re.sub(re.escape(tco_url), attachment_placeholders, processed_text)
+        attachment_placeholders = "".join(["[{attachment}]" for _ in media_items])
+        processed_text = re.sub(
+            re.escape(tco_url), attachment_placeholders, processed_text
+        )
 
         for media_info in media_items:
-            media_url = media_info['media_url']
-            media_filename = os.path.basename(media_url).split('?')[0]
-            if media_info['type'] in ['video', 'animated_gif']:
-                media_filename = os.path.splitext(media_filename)[0] + '.mp4'
-            
+            media_url = media_info["media_url"]
+            media_filename = os.path.basename(media_url).split("?")[0]
+            if media_info["type"] in ["video", "animated_gif"]:
+                media_filename = os.path.splitext(media_filename)[0] + ".mp4"
+
             # Construct the absolute path to the media file within the local archive structure.
-            media_path = os.path.join(processing_utils.TWEET_ARCHIVE_PATH, 'tweets_media', f"{tweet_id}-{media_filename}")
+            media_path = os.path.join(
+                processing_utils.TWEET_ARCHIVE_PATH,
+                "tweets_media",
+                f"{tweet_id}-{media_filename}",
+            )
             media_files.append(media_path)
-            
+
     return processed_text, media_files
 
 
@@ -467,13 +502,13 @@ def process_tweet_text_for_markdown_links(tweet):
     Args:
         tweet (dict): The tweet object to process.
     """
-    tweet_data = tweet.get('tweet')
+    tweet_data = tweet.get("tweet")
     if not tweet_data:
         return
 
-    full_text = tweet_data.get('full_text')
-    entities = tweet_data.get('entities')
-    tweet_id = tweet_data.get('id_str')
+    full_text = tweet_data.get("full_text")
+    entities = tweet_data.get("entities")
+    tweet_id = tweet_data.get("id_str")
 
     if not all([full_text, entities, tweet_id]):
         return
@@ -482,10 +517,9 @@ def process_tweet_text_for_markdown_links(tweet):
     media_by_tco = _process_media_entities(tweet_data, entities)
 
     processed_text = _replace_links_in_text(full_text, links_to_process, media_by_tco)
-    processed_text, media_files = _replace_media_in_text(processed_text, media_by_tco, tweet_id)
+    processed_text, media_files = _replace_media_in_text(
+        processed_text, media_by_tco, tweet_id
+    )
 
-    tweet_data['full_text'] = processed_text.strip()
-    tweet_data['media_files'] = media_files
-
-
-
+    tweet_data["full_text"] = processed_text.strip()
+    tweet_data["media_files"] = media_files

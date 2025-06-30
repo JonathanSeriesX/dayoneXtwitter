@@ -1,6 +1,9 @@
-import requests
 import json
+
+import requests
+
 from config import OLLAMA_API_URL, OLLAMA_MODEL_NAME, OLLAMA_PROMPT
+
 
 def get_tweet_summary(tweet_text: str) -> str:
     """
@@ -22,25 +25,29 @@ def get_tweet_summary(tweet_text: str) -> str:
     data = {
         "model": model_name,
         "prompt": prompt,
-        "stream": False, # We want the full response at once
+        "stream": False,  # We want the full response at once
         "options": {
-            "num_predict": 10, # Limit output to a few tokens for a single word
-            "temperature": 0.3 # Keep it low for more deterministic output
-        }
+            "num_predict": 10,  # Limit output to a few tokens for a single word
+            "temperature": 0.3,  # Keep it low for more deterministic output
+        },
     }
 
     try:
-        response = requests.post(ollama_url, headers=headers, data=json.dumps(data), timeout=30)
-        response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
-        
+        response = requests.post(
+            ollama_url, headers=headers, data=json.dumps(data), timeout=30
+        )
+        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+
         result = response.json()
         summary = result.get("response", "").strip()
 
         if summary:
-            return summary#.capitalize() # Capitalize for better titles
-        
+            return summary  # .capitalize() # Capitalize for better titles
+
     except requests.exceptions.ConnectionError:
-        print(f"Warning: Could not connect to Ollama at {ollama_url}. Is the Ollama server running?")
+        print(
+            f"Warning: Could not connect to Ollama at {ollama_url}. Is the Ollama server running?"
+        )
     except requests.exceptions.Timeout:
         print("Warning: Ollama request timed out.")
     except requests.exceptions.RequestException as e:
@@ -50,4 +57,4 @@ def get_tweet_summary(tweet_text: str) -> str:
     except Exception as e:
         print(f"An unexpected error occurred during LLM summarization: {e}")
 
-    return "Uncategorized" # Fallback summary
+    return "Uncategorized"  # Fallback summary
