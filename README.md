@@ -16,7 +16,7 @@ By importing your Twitter archive into Day One with this script, you can:
 - Perform full-text searches that actually work
 - - Easily purge any unwanted [kompromat](https://en.wikipedia.org/wiki/Kompromat) from your old tweets
 
-<img src="pics/replies.png" alt="Intro" width="600"/>
+<img src="pics/threads.png" alt="Intro" width="600"/>
 
 ---
 
@@ -29,7 +29,7 @@ By importing your Twitter archive into Day One with this script, you can:
 
 I've meticulously analysed nearly every edge case to ensure your tweets will render flawlessly in Day One.
 
-<img src="pics/threads.png" alt="Intro" width="600"/>
+<img src="pics/replies.png" alt="Intro" width="600"/>
 
 ---
 
