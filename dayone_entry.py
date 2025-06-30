@@ -6,12 +6,12 @@ from typing import List, Optional, Tuple
 
 
 def add_post(
-        text: str,
-        journal: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        date_time: Optional[datetime] = None,
-        coordinate: Optional[Tuple[float, float]] = None,
-        attachments: Optional[List[str]] = None,
+    text: str,
+    journal: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    date_time: Optional[datetime] = None,
+    coordinate: Optional[Tuple[float, float]] = None,
+    attachments: Optional[List[str]] = None,
 ) -> bool:
     """
     Creates a new entry in the Day One app using the CLI.
@@ -74,7 +74,7 @@ def add_post(
     if not success and attachments:
         print(
             "Warning: Failed to add entry with attachments. Retrying without them...",
-            file=sys.stderr
+            file=sys.stderr,
         )
         # Find the position of the '--attachments' flag and slice the command
         # list to exclude it and all subsequent file paths.
@@ -86,8 +86,7 @@ def add_post(
         except ValueError:
             # This case should technically not be reached if `attachments` is truthy,
             # but it's good practice to handle it.
-            return False # Indicate failure as something went wrong with command construction.
-
+            return False  # Indicate failure as something went wrong with command construction.
 
     # Return the result of the first attempt if it succeeded or if there were no attachments.
     return success
@@ -115,9 +114,9 @@ def _execute_command(command: List[str]) -> bool:
         result = subprocess.run(
             command,
             capture_output=True,  # Captures stdout and stderr.
-            text=True,            # Decodes stdout and stderr as text using default encoding.
-            check=False           # Prevents subprocess.run from raising CalledProcessError
-                                  # for non-zero exit codes. We handle the return code manually.
+            text=True,  # Decodes stdout and stderr as text using default encoding.
+            check=False,  # Prevents subprocess.run from raising CalledProcessError
+            # for non-zero exit codes. We handle the return code manually.
         )
 
         # Check the return code to determine if the command was successful.
@@ -127,19 +126,19 @@ def _execute_command(command: List[str]) -> bool:
             return True
         else:
             # If the command failed, print the exit code and any error messages from stderr.
-            print(f"Error executing Day One command. Exit Code: {result.returncode}", file=sys.stderr)
+            print(
+                f"Error executing Day One command. Exit Code: {result.returncode}",
+                file=sys.stderr,
+            )
             print(f"Error Details: {result.stderr.strip()}", file=sys.stderr)
             return False
 
     except FileNotFoundError:
         # This exception is raised if the 'dayone2' command itself is not found.
-        print(
-            "Error: Could not find the 'dayone2' command.",
-            file=sys.stderr
-        )
+        print("Error: Could not find the 'dayone2' command.", file=sys.stderr)
         print(
             "Please ensure the Day One CLI is installed and in your system's PATH.",
-            file=sys.stderr
+            file=sys.stderr,
         )
         return False
     except Exception as e:

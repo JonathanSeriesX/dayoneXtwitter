@@ -11,6 +11,7 @@ from processing_utils import (
     load_debug_tweet_ids,
 )
 
+
 def main():
     if not print_initial_status():
         return
@@ -42,16 +43,23 @@ def main():
     filtered_threads = []
     for thread in threads:
         # Assuming the first tweet in the thread determines the thread's creation date
-        if thread and 'tweet' in thread[0] and 'created_at' in thread[0]['tweet']:
-            thread_date = thread[0]['tweet']['created_at'].replace(tzinfo=None) # Remove timezone for comparison
+        if thread and "tweet" in thread[0] and "created_at" in thread[0]["tweet"]:
+            thread_date = thread[0]["tweet"]["created_at"].replace(
+                tzinfo=None
+            )  # Remove timezone for comparison
             if start_date <= thread_date <= end_date:
                 filtered_threads.append(thread)
 
     if len(threads) != len(filtered_threads):
-        print(f"Filtered down to {len(filtered_threads)} threads within the specified date range.")
+        print(
+            f"Filtered down to {len(filtered_threads)} threads within the specified date range."
+        )
 
     for i, thread in enumerate(filtered_threads):
-        if config.MAX_THREADS_TO_PROCESS is not None and i >= config.MAX_THREADS_TO_PROCESS:
+        if (
+            config.MAX_THREADS_TO_PROCESS is not None
+            and i >= config.MAX_THREADS_TO_PROCESS
+        ):
             print(f"Stopping after processing {config.MAX_THREADS_TO_PROCESS} threads.")
             break
         process_single_thread(thread, processed_tweet_ids)
@@ -59,6 +67,7 @@ def main():
     if debug_tweet_ids:
         if os.path.isfile(processing_utils.STATUSES_FILE_PATH):
             os.remove(processing_utils.STATUSES_FILE_PATH)
+
 
 if __name__ == "__main__":
     main()

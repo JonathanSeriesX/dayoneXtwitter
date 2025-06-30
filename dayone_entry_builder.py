@@ -5,6 +5,7 @@ import humanize
 import config
 from llm_analyzer import get_tweet_summary
 
+
 def escape_md(text: str) -> str:
     # 1) Handle line-start markers
     lines = []
@@ -24,6 +25,7 @@ def escape_md(text: str) -> str:
 
     return escaped
 
+
 def aggregate_thread_data(thread: list):
     """Aggregates text, tags, media files, date, and coordinates from a thread."""
     entry_text = ""
@@ -34,14 +36,14 @@ def aggregate_thread_data(thread: list):
     first_tweet_date = None
 
     for i, tweet_in_thread in enumerate(thread):
-        tweet_data = tweet_in_thread['tweet']
-        current_tweet_date = tweet_data['created_at']
+        tweet_data = tweet_in_thread["tweet"]
+        current_tweet_date = tweet_data["created_at"]
 
         if i == 0:
             first_tweet_date = current_tweet_date
             entry_date_time = current_tweet_date
 
-        entry_text += tweet_data['full_text'] + "\n\n"
+        entry_text += tweet_data["full_text"] + "\n\n"
         metrics = []
         likes = int(tweet_data["favorite_count"])
         rts = int(tweet_data["retweet_count"])
@@ -74,27 +76,29 @@ def aggregate_thread_data(thread: list):
 
         if tweet_data["entities"].get("hashtags"):
             for hashtag in tweet_data["entities"]["hashtags"]:
-                entry_tags.append(hashtag['text'])
+                entry_tags.append(hashtag["text"])
 
         if tweet_data.get("media_files"):
             for media_file in tweet_data["media_files"]:
                 entry_media_files.append(media_file)
 
-        if not entry_coordinate and tweet_data.get("coordinates") and tweet_data["coordinates"].get("coordinates"):
+        if (
+            not entry_coordinate
+            and tweet_data.get("coordinates")
+            and tweet_data["coordinates"].get("coordinates")
+        ):
             longitude = tweet_data["coordinates"]["coordinates"][0]
             latitude = tweet_data["coordinates"]["coordinates"][1]
             entry_coordinate = (latitude, longitude)
-    
+
     return entry_text, entry_tags, entry_media_files, entry_date_time, entry_coordinate
-
-
 
 
 def generate_entry_title(entry_text: str, category: str, thread_length: int):
     """Generates the title for the Day One entry, optionally using an LLM."""
     if category.startswith("Replied to"):
         return category
-    if config.PROCESS_TITLES_WITH_LLM and thread_length > 1: # we only process threads
+    if config.PROCESS_TITLES_WITH_LLM and thread_length > 1:  # we only process threads
         llm_summary = get_tweet_summary(entry_text)
         print("Summary: " + llm_summary)
         if llm_summary != "Uncategorized":
