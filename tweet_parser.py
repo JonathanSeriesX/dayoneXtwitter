@@ -1,11 +1,10 @@
 import json
 import re
 import os
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime
 
 import processing_utils
-
 
 def _build_case_insensitive_name_map(tweet):
     """
@@ -269,59 +268,94 @@ def load_tweets(tweet_archive_path):
 
     return tweets
 
+def _count_media(tweet):
+    """Counts the number of media items in a single tweet."""
+    # 'extended_entities' is preferred as it includes all media, even in quote tweets.
+    # Fall back to 'entities' if it's not present.
+    entities = tweet['tweet'].get('extended_entities', tweet['tweet'].get('entities', {}))
+    return len(entities.get('media', []))
 
-def combine_threads(tweets):
+def combine_threads(tweets, media_limit=26):
     """
-    Groups tweets into conversational threads by following reply chains.
+    Groups tweets into chronological threads, splitting a thread if its
+    cumulative media count exceeds a specified limit.
+
+    When a thread is split, the tweet that would have exceeded the limit
+    becomes the starting tweet of the next thread segment.
 
     Args:
-        tweets (list): A list of tweet dictionaries.
+        tweets (list): A list of tweet dictionaries from a Twitter archive.
+        media_limit (int): The maximum number of media files allowed in a
+                           single thread segment before it is split.
 
     Returns:
-        list: A list of lists, where each inner list represents a thread
-              of chronologically ordered tweets.
+        list: A list of lists, where each inner list represents a
+              chronologically ordered thread or thread segment.
     """
-    # Create a quick-access map of tweets by their ID for efficient lookup
+    # --- Step 1: Initial setup (same as before) ---
     tweet_by_id = {tweet['tweet']['id_str']: tweet for tweet in tweets}
-
-    # Map parent tweet IDs to a list of their direct children (replies)
     children_map = defaultdict(list)
-    # Keep track of all tweet IDs that are replies to something within the archive
     all_child_ids = set()
 
     for tweet in tweets:
         parent_id = tweet['tweet'].get('in_reply_to_status_id_str')
-        if parent_id:
+        if parent_id and parent_id in tweet_by_id:
             # Only consider replies where the parent tweet is also in our archive
-            if parent_id in tweet_by_id:
-                children_map[parent_id].append(tweet)
-                all_child_ids.add(tweet['tweet']['id_str'])
+            children_map[parent_id].append(tweet)
+            all_child_ids.add(tweet['tweet']['id_str'])
 
-    # Identify "root" tweets: those that are not replies to any other tweet in the archive
+    # --- Step 2: Identify and sort initial root tweets ---
     root_tweets = [t for t in tweets if t['tweet']['id_str'] not in all_child_ids]
-
-    # Sort root tweets chronologically by converting their ID strings to integers.
-    # This ensures threads are processed and built in a consistent order.
     sorted_roots = sorted(root_tweets, key=lambda t: int(t['tweet']['id_str']))
 
-    # Build the final list of threads using a breadth-first traversal from each root
+    # --- Step 3: Build threads with splitting logic ---
     final_threads = []
-    for root in sorted_roots:
-        thread = []
-        queue = [root]
-        while queue:
-            current_tweet = queue.pop(0)
-            thread.append(current_tweet)
+    # Keep track of tweets already assigned to a thread to avoid reprocessing.
+    processed_ids = set()
 
-            # Get children (replies) of the current tweet, sort them chronologically,
-            # and add them to the queue for further processing.
-            children = children_map.get(current_tweet['tweet']['id_str'], [])
-            sorted_children = sorted(children, key=lambda t: int(t['tweet']['id_str']))
-            queue.extend(sorted_children)
-        
-        # Add the completed thread to the final list if it's not empty
-        if len(thread) > 0:
-            final_threads.append(thread)
+    for root in sorted_roots:
+        # If this "root" was already processed as part of another thread that got
+        # split, skip it.
+        if root['tweet']['id_str'] in processed_ids:
+            continue
+
+        # This queue will hold all tweets in the conversation chain starting from the root.
+        # We will drain this queue, creating new thread segments whenever the media limit is hit.
+        super_thread_queue = deque([root])
+
+        while super_thread_queue:
+            # Start a new thread segment
+            current_segment = []
+            media_count_in_segment = 0
+
+            # Build the segment until the queue is empty or the media limit is reached
+            while super_thread_queue:
+                next_tweet = super_thread_queue[0]  # Peek at the next tweet
+                media_in_next_tweet = _count_media(next_tweet)
+
+                # SPLIT CONDITION:
+                # If the segment is not empty and adding the next tweet would exceed the limit.
+                # A non-empty check is vital to ensure a tweet with many media files can start its own thread.
+                if current_segment and (media_count_in_segment + media_in_next_tweet > media_limit):
+                    # Stop building this segment. The `next_tweet` will become the
+                    # start of the next segment in the next outer loop iteration.
+                    break
+
+                # If we're here, the tweet fits. Pop it from the queue and process it.
+                current_tweet = super_thread_queue.popleft()
+
+                current_segment.append(current_tweet)
+                processed_ids.add(current_tweet['tweet']['id_str'])
+                media_count_in_segment += _count_media(current_tweet)
+
+                # Find its children, sort them, and add them to the main queue for processing.
+                children = children_map.get(current_tweet['tweet']['id_str'], [])
+                sorted_children = sorted(children, key=lambda t: int(t['tweet']['id_str']))
+                super_thread_queue.extend(sorted_children)
+
+            # Add the completed segment to our final list of threads.
+            if current_segment:
+                final_threads.append(current_segment)
 
     return final_threads
 

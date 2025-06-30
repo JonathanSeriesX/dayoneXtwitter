@@ -114,6 +114,4 @@ If you find this useful, please consider supporting me:
 ### Plans
 
 - Better packaging
-- Support for threads with more than 30 photos inside 
-  - Day One limitation, but it can be avoided by splitting long threads with many attachments into multiple posts
 - Support for grouping relevant successive tweets into a single post (relevant for 2016 and before, when there were no threads)
