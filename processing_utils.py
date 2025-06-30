@@ -12,11 +12,12 @@ root = Path(__file__).resolve().parent
 STATUSES_FILE_PATH = str(root / "processed_tweets.txt")
 # find all tweets.js under twitter-*/data/, then pick the one in the folder
 # with the lexically largest name (i.e. newest YYYY-MM-DD)
-js = max(
-    root.glob("twitter-*/data/tweets.js"),
-    key=lambda p: p.parent.parent.name
-)
-if not js:
+try:
+    js = max(
+        root.glob("twitter-*/data/tweets.js"),
+        key=lambda p: p.parent.parent.name
+    )
+except ValueError:
     raise FileNotFoundError("Couldn't find twitter-*/data/tweets.js in project folder")
 TWEETS_JS_PATH = str(js)
 TWEET_ARCHIVE_PATH = str(js.parent)  # -> …/twitter-…/data
@@ -67,7 +68,7 @@ def load_debug_tweet_ids() -> list[str]:
         return [line.strip() for line in f if line.strip()]
 
 
-def load_and_prepare_threads(tweet_ids_to_debug: list[str] | None = None):
+def load_and_prepare_threads(tweet_ids_to_debug=None):
     """Loads tweets, expands links, combines threads, and shuffles them."""
     tweets = load_tweets(TWEETS_JS_PATH)
     print(f"Using archive folder {TWEET_ARCHIVE_PATH}")

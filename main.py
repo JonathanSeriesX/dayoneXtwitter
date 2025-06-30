@@ -1,4 +1,5 @@
 import os
+import warnings
 from datetime import datetime
 
 import config
@@ -10,6 +11,8 @@ from processing_utils import (
     process_single_thread,
     load_debug_tweet_ids,
 )
+
+warnings.filterwarnings("ignore", message=".*NotOpenSSLWarning.*") # for Python 3.9 compatibility (default on Sonoma)
 
 
 def main():
