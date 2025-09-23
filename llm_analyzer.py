@@ -29,6 +29,7 @@ def get_tweet_summary(tweet_text: str) -> str:
         "options": {
             "num_predict": 10,  # Limit output to a few tokens for a single word
             "temperature": 0.3,  # Keep it low for more deterministic output
+            "num_ctx": 2048,  # To reduce RAM usage
         },
     }
 
