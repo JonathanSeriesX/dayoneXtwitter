@@ -34,7 +34,7 @@ def add_post(
     # Using a list for the command and its arguments is crucial for security,
     # as it prevents shell injection vulnerabilities by ensuring each argument
     # is treated as a distinct entity, not part of a single shell string.
-    command = ["dayone2", "new", text]
+    command = ["dayone", "new", text]
 
     # Append optional arguments based on the provided parameters.
     # Each 'if' block adds the corresponding Day One CLI flag and its value(s).
