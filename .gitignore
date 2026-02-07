@@ -10,7 +10,7 @@
 __pycache__
 
 # Data-related
-twitter*
+/twitter*
 processed_tweets.txt
 tweets_to_debug
 .DS_Store
