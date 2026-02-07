@@ -13,6 +13,7 @@ struct ContentView: View {
         }
         .padding(22)
         .frame(minWidth: 980, minHeight: 820)
+        .containerBackground(.regularMaterial, for: .window)
         .alert("Import Error", isPresented: $viewModel.isShowingError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -157,16 +158,47 @@ struct ContentView: View {
             }
 
             VStack(spacing: 12) {
-                Image(systemName: "square.and.arrow.down.on.square.fill")
-                    .font(.system(size: 60))
-                    .symbolRenderingMode(.hierarchical)
-                Text("Drag & Drop Here")
-                    .font(.title2.weight(.semibold))
-                Button("Choose Archive") {
-                    viewModel.chooseArchive()
+                if viewModel.isPreparing {
+                    ProgressView()
+                        .controlSize(.large)
+                    Text("Analyzing archive...")
+                        .font(.title2.weight(.semibold))
+                    Text("Reading tweets, media, account data, and date range.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 440)
+                } else if let overview = viewModel.overview {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 58))
+                        .foregroundStyle(.green)
+                    Text("Archive analyzed")
+                        .font(.title2.weight(.semibold))
+                    Text("\(overview.totalTweets) tweets found. \(overview.threadsInDateRange) thread(s) in selected date range.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 440)
+                    Button("Choose Different Archive") {
+                        viewModel.chooseArchive()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                } else {
+                    Image(systemName: "square.and.arrow.down.on.square.fill")
+                        .font(.system(size: 60))
+                        .symbolRenderingMode(.hierarchical)
+                    Text("Drag & Drop Here")
+                        .font(.title2.weight(.semibold))
+                    Text("Or choose an archive manually.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button("Choose Archive") {
+                        viewModel.chooseArchive()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 330)
@@ -186,6 +218,8 @@ struct ContentView: View {
             .onDrop(of: [UTType.fileURL], isTargeted: $viewModel.isDropTargeted) { providers in
                 viewModel.handleDrop(providers: providers)
             }
+            .animation(.easeInOut(duration: 0.2), value: viewModel.isPreparing)
+            .animation(.easeInOut(duration: 0.2), value: viewModel.hasArchive)
 
             if let overview = viewModel.overview {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12)], spacing: 12) {
@@ -586,7 +620,16 @@ struct ContentView: View {
     }
 
     private var dropZoneBackground: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(Color.secondary.opacity(0.06))
+        let fillColor: Color
+        if viewModel.isPreparing {
+            fillColor = .accentColor.opacity(0.12)
+        } else if viewModel.hasArchive {
+            fillColor = .green.opacity(0.10)
+        } else {
+            fillColor = Color.secondary.opacity(0.06)
+        }
+
+        return RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(fillColor)
     }
 }

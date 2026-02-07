@@ -1,16 +1,14 @@
-# Local environment variables
-.env
-.venv
-
-# Dev-related
-.idea
-.mypy_cache
-.pytest_cache
-.ruff_cache
-__pycache__
-
-# Data-related
-/twitter*
-processed_tweets.txt
-tweets_to_debug
+# Xcode
 .DS_Store
+
+## User settings
+xcuserdata/
+
+## Obj-C/Swift specific
+*.hmap
+
+## App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+

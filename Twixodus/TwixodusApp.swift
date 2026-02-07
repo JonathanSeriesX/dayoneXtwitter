@@ -34,25 +34,6 @@ final class TwixodusAppDelegate: NSObject, NSApplicationDelegate {
         if #available(macOS 11.0, *) {
             window.titlebarSeparatorStyle = .none
         }
-
-        window.isOpaque = false
-        window.backgroundColor = .clear
-
-        let targetRadius: CGFloat = 30
-
-        if let frameView = window.contentView?.superview {
-            frameView.wantsLayer = true
-            frameView.layer?.masksToBounds = true
-            frameView.layer?.cornerCurve = .continuous
-            frameView.layer?.cornerRadius = targetRadius
-        }
-
-        if let contentView = window.contentView {
-            contentView.wantsLayer = true
-            contentView.layer?.masksToBounds = true
-            contentView.layer?.cornerCurve = .continuous
-            contentView.layer?.cornerRadius = targetRadius
-        }
     }
 }
 

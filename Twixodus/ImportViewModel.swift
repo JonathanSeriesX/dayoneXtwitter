@@ -221,6 +221,10 @@ final class ImportViewModel {
         importTask?.cancel()
         checksTask?.cancel()
 
+        preparedContext = nil
+        activeArchive = nil
+        overview = nil
+
         isPreparing = true
         isImporting = false
         currentStep = .drop
@@ -233,10 +237,9 @@ final class ImportViewModel {
             do {
                 let context = try await coordinator.resolveAndPrepare(dropURL: droppedURL, settings: settingsSnapshot)
                 applyPreparedContext(context)
-                statusMessage = "Archive ready: \(context.overview.pendingToImport) pending thread(s)."
+                statusMessage = "Archive ready. Review stats, then continue."
                 appendLog("Archive ready: \(context.overview.totalTweets) tweets, \(context.overview.threadsInDateRange) thread(s) in date range.")
 
-                currentStep = .prerequisites
                 runPrerequisiteChecks()
             } catch {
                 setError(error.localizedDescription)
