@@ -5,14 +5,15 @@ struct ContentView: View {
     @State private var viewModel = ImportViewModel()
 
     var body: some View {
-        VStack(spacing: 18) {
-            header
+        VStack(spacing: 0) {
             stepsRail
-            pageCard
+            Divider()
+            pageBody
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Divider()
             navigationBar
         }
-        .padding(22)
-        .frame(minWidth: 980, minHeight: 820)
+        .frame(width: 900, height: 600)
         .containerBackground(.regularMaterial, for: .window)
         .alert("Import Error", isPresented: $viewModel.isShowingError) {
             Button("OK", role: .cancel) {}
@@ -20,7 +21,9 @@ struct ContentView: View {
             Text(viewModel.errorMessage)
         }
         .onChange(of: viewModel.settings.processTitlesWithLLM) { _, _ in
-            viewModel.runPrerequisiteChecks()
+            if viewModel.currentStep == .prerequisites {
+                viewModel.runPrerequisiteChecks()
+            }
         }
         .onChange(of: viewModel.settings.skipAlreadyImported) { _, _ in
             if viewModel.hasArchive && !viewModel.isPreparing && !viewModel.isImporting {
@@ -29,71 +32,34 @@ struct ContentView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Twixodus")
-                    .font(.system(size: 34, weight: .semibold, design: .rounded))
-                Text(viewModel.currentStep.title)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(viewModel.statusMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            Spacer()
-
-            if let overview = viewModel.overview {
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(overview.archivePath)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.trailing)
-                    if let username = viewModel.detectedUsername {
-                        Text("@\(username)")
-                            .font(.headline.monospaced())
-                    }
-                }
-                .textSelection(.enabled)
-            }
-        }
-    }
-
     private var stepsRail: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             ForEach(WizardStep.allCases) { step in
-                stepBadge(for: step)
+                stepChip(step)
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
-    private var pageCard: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                switch viewModel.currentStep {
-                case .drop:
-                    dropPage
-                case .prerequisites:
-                    prerequisitesPage
-                case .settings:
-                    settingsPage
-                case .progress:
-                    progressPage
-                case .done:
-                    donePage
-                }
-            }
-            .padding(22)
+    @ViewBuilder
+    private var pageBody: some View {
+        switch viewModel.currentStep {
+        case .drop:
+            dropPage
+        case .prerequisites:
+            prerequisitesPage
+        case .settings:
+            settingsPage
+        case .progress:
+            progressPage
+        case .done:
+            donePage
         }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var navigationBar: some View {
-        HStack(spacing: 10) {
+        HStack {
             switch viewModel.currentStep {
             case .drop:
                 Spacer()
@@ -122,7 +88,14 @@ struct ContentView: View {
                     viewModel.goBackFromSettings()
                 }
                 .buttonStyle(.bordered)
+
                 Spacer()
+
+                Button(viewModel.isImporting ? "Importing..." : "Start Import") {
+                    viewModel.startImport()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!viewModel.canImport)
 
             case .progress:
                 Button("Back") {
@@ -130,7 +103,14 @@ struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(viewModel.isImporting)
+
                 Spacer()
+
+                Button("Cancel Import") {
+                    viewModel.cancelImport()
+                }
+                .buttonStyle(.bordered)
+                .disabled(!viewModel.isImporting)
 
             case .done:
                 Spacer()
@@ -140,107 +120,79 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     private var dropPage: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 10) {
-                Text("Step 1")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text("Drop your Twitter archive")
-                    .font(.title.weight(.semibold))
-                Text("Drop a folder or zip file. Zip archives are extracted into a folder named after the archive in the same parent folder.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 640)
-            }
+        VStack(spacing: 12) {
+            Text("Step 1: Drop Archive")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(spacing: 12) {
-                if viewModel.isPreparing {
+            if viewModel.isPreparing {
+                VStack(spacing: 10) {
                     ProgressView()
                         .controlSize(.large)
-                    Text("Analyzing archive...")
-                        .font(.title2.weight(.semibold))
-                    Text("Reading tweets, media, account data, and date range.")
+                    Text("Analyzing archive")
+                        .font(.headline)
+                    Text("Please wait while archive stats are generated.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 440)
-                } else if let overview = viewModel.overview {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 58))
-                        .foregroundStyle(.green)
-                    Text("Archive analyzed")
-                        .font(.title2.weight(.semibold))
-                    Text("\(overview.totalTweets) tweets found. \(overview.threadsInDateRange) thread(s) in selected date range.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 440)
-                    Button("Choose Different Archive") {
-                        viewModel.chooseArchive()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                } else {
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(cardBackground)
+            } else if let overview = viewModel.overview {
+                VStack(spacing: 14) {
+                    metricRow("Tweets", value: "\(overview.totalTweets)")
+                    metricRow("Threads", value: "\(overview.threadsInDateRange)")
+                    metricRow("Date Range", value: viewModel.dateRangeText)
+                }
+                .frame(maxWidth: 500)
+                .padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(cardBackground)
+            } else {
+                VStack(spacing: 12) {
                     Image(systemName: "square.and.arrow.down.on.square.fill")
-                        .font(.system(size: 60))
+                        .font(.system(size: 52))
                         .symbolRenderingMode(.hierarchical)
-                    Text("Drag & Drop Here")
-                        .font(.title2.weight(.semibold))
-                    Text("Or choose an archive manually.")
+                    Text("Drag and drop here")
+                        .font(.title3.weight(.semibold))
+                    Text("Twitter archive folder or .zip")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Button("Choose Archive") {
                         viewModel.chooseArchive()
                     }
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
                 }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 330)
-            .background(dropZoneBackground)
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(
-                        style: StrokeStyle(
-                            lineWidth: viewModel.isDropTargeted ? 2.5 : 1.5,
-                            dash: [12, 9],
-                            dashPhase: viewModel.isDropTargeted ? 16 : 0
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(cardBackground)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(
+                            style: StrokeStyle(
+                                lineWidth: viewModel.isDropTargeted ? 2 : 1.2,
+                                dash: [9, 7]
+                            )
                         )
-                    )
-                    .foregroundStyle(viewModel.isDropTargeted ? Color.accentColor : .secondary.opacity(0.7))
-                    .animation(.easeInOut(duration: 0.2), value: viewModel.isDropTargeted)
-            }
-            .onDrop(of: [UTType.fileURL], isTargeted: $viewModel.isDropTargeted) { providers in
-                viewModel.handleDrop(providers: providers)
-            }
-            .animation(.easeInOut(duration: 0.2), value: viewModel.isPreparing)
-            .animation(.easeInOut(duration: 0.2), value: viewModel.hasArchive)
-
-            if let overview = viewModel.overview {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12)], spacing: 12) {
-                    metricCard("Tweets", value: "\(overview.totalTweets)")
-                    metricCard("Threads", value: "\(overview.threadsInDateRange)")
-                    metricCard("Already Imported", value: viewModel.settings.skipAlreadyImported ? "\(overview.alreadyImported)" : "Off")
-                    metricCard("Pending", value: "\(overview.pendingToImport)")
+                        .foregroundStyle(viewModel.isDropTargeted ? Color.accentColor : .secondary.opacity(0.65))
+                }
+                .onDrop(of: [UTType.fileURL], isTargeted: $viewModel.isDropTargeted) { providers in
+                    viewModel.handleDrop(providers: providers)
                 }
             }
         }
+        .padding(16)
     }
 
     private var prerequisitesPage: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Step 2")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text("Prerequisites")
-                .font(.title.weight(.semibold))
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Step 2: Pre-requisites")
+                .font(.headline)
 
-            Text("Confirm these checks before importing. Required items must be green.")
+            Text("Please create a Day One journal for tweets and for replies before importing.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -250,328 +202,260 @@ struct ContentView: View {
                 }
             }
 
-            HStack(spacing: 10) {
-                Button(viewModel.isCheckingPrerequisites ? "Checking..." : "Re-check") {
-                    viewModel.runPrerequisiteChecks()
-                }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.isCheckingPrerequisites)
-
-                if viewModel.hasMetRequiredPrerequisites {
-                    Label("Required checks passed", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.subheadline)
-                } else {
-                    Label("Required checks incomplete", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.subheadline)
-                }
-            }
+            Spacer()
+        }
+        .padding(16)
+        .onAppear {
+            viewModel.runPrerequisiteChecks()
         }
     }
 
     private var settingsPage: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Step 3")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text("Import settings")
-                .font(.title.weight(.semibold))
-
-            if let username = viewModel.detectedUsername {
-                Label("Archive username: @\(username)", systemImage: "person.text.rectangle")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Step 3: Import Settings")
                     .font(.headline)
-            } else {
-                Label("Archive username not found in data/account.js", systemImage: "person.crop.circle.badge.exclamationmark")
-                    .font(.subheadline)
-                    .foregroundStyle(.orange)
-            }
 
-            if let displayName = viewModel.detectedDisplayName {
-                Text(displayName)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Grid(horizontalSpacing: 14, verticalSpacing: 12) {
-                GridRow {
-                    label("Tweet Journal")
-                    TextField("Tweets", text: $viewModel.settings.journalName)
-                        .textFieldStyle(.roundedBorder)
+                if let username = viewModel.detectedUsername {
+                    Text("Archive user: @\(username)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
 
-                GridRow {
-                    label("Replies")
-                    Toggle("Import replies", isOn: $viewModel.settings.includeReplies)
-                }
-
-                if viewModel.settings.includeReplies {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
                     GridRow {
-                        label("Reply Journal")
-                        TextField("Twitter Replies", text: $viewModel.settings.replyJournalName)
+                        Text("Tweet Journal")
+                            .foregroundStyle(.secondary)
+                        TextField("Tweets", text: $viewModel.settings.journalName)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    GridRow {
+                        Text("Import Replies")
+                            .foregroundStyle(.secondary)
+                        Toggle("", isOn: $viewModel.settings.includeReplies)
+                            .labelsHidden()
+                    }
+
+                    if viewModel.settings.includeReplies {
+                        GridRow {
+                            Text("Reply Journal")
+                                .foregroundStyle(.secondary)
+                            TextField("Twitter Replies", text: $viewModel.settings.replyJournalName)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+
+                    GridRow {
+                        Text("Ignore Retweets")
+                            .foregroundStyle(.secondary)
+                        Toggle("", isOn: $viewModel.settings.ignoreRetweets)
+                            .labelsHidden()
+                    }
+
+                    GridRow {
+                        Text("Skip Already Imported")
+                            .foregroundStyle(.secondary)
+                        Toggle("", isOn: $viewModel.settings.skipAlreadyImported)
+                            .labelsHidden()
+                    }
+
+                    GridRow {
+                        Text("Date Range")
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            DatePicker("", selection: $viewModel.settings.startDate, displayedComponents: .date)
+                                .labelsHidden()
+                            Text("-")
+                            DatePicker("", selection: $viewModel.settings.endDate, displayedComponents: .date)
+                                .labelsHidden()
+                        }
+                    }
+
+                    GridRow {
+                        Text("LLM Titles")
+                            .foregroundStyle(.secondary)
+                        Toggle("", isOn: $viewModel.settings.processTitlesWithLLM)
+                            .labelsHidden()
+                    }
+                }
+
+                if viewModel.settings.processTitlesWithLLM {
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextField("Ollama API URL", text: $viewModel.settings.ollamaAPIURL)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Ollama model", text: $viewModel.settings.ollamaModelName)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Prompt", text: $viewModel.settings.ollamaPrompt, axis: .vertical)
+                            .lineLimit(2 ... 4)
                             .textFieldStyle(.roundedBorder)
                     }
                 }
 
-                GridRow {
-                    label("Ignore Retweets")
-                    Toggle("Skip retweets", isOn: $viewModel.settings.ignoreRetweets)
+                HStack {
+                    Button("Refresh Preview") {
+                        viewModel.refreshPreview()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.hasArchive || viewModel.isPreparing || viewModel.isImporting)
+
+                    Button("Defaults") {
+                        viewModel.resetSettingsToDefaults()
+                    }
+                    .buttonStyle(.bordered)
                 }
 
-                GridRow {
-                    label("Duplicate Guard")
-                    Toggle("Skip entries listed in processed_tweets.txt", isOn: $viewModel.settings.skipAlreadyImported)
-                }
-
-                GridRow {
-                    label("Date Range")
-                    HStack {
-                        DatePicker("Start", selection: $viewModel.settings.startDate, displayedComponents: .date)
-                        DatePicker("End", selection: $viewModel.settings.endDate, displayedComponents: .date)
+                if let overview = viewModel.overview {
+                    HStack(spacing: 10) {
+                        metricMini("Threads", value: "\(overview.threadsInDateRange)")
+                        metricMini("Pending", value: "\(overview.pendingToImport)")
+                        metricMini("Imported", value: viewModel.settings.skipAlreadyImported ? "\(overview.alreadyImported)" : "Off")
                     }
                 }
-
-                GridRow {
-                    label("LLM Titles")
-                    Toggle("Generate thread titles with Ollama", isOn: $viewModel.settings.processTitlesWithLLM)
-                }
             }
-
-            if viewModel.settings.processTitlesWithLLM {
-                VStack(alignment: .leading, spacing: 8) {
-                    TextField("Ollama API URL", text: $viewModel.settings.ollamaAPIURL)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Ollama model", text: $viewModel.settings.ollamaModelName)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Prompt", text: $viewModel.settings.ollamaPrompt, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(2 ... 5)
-                }
-            }
-
-            HStack(spacing: 10) {
-                Button("Refresh Preview") {
-                    viewModel.refreshPreview()
-                }
-                .buttonStyle(.bordered)
-                .disabled(!viewModel.hasArchive || viewModel.isPreparing || viewModel.isImporting)
-
-                Button("Defaults") {
-                    viewModel.resetSettingsToDefaults()
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button(viewModel.isImporting ? "Importing..." : "Start Import") {
-                    viewModel.startImport()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(!viewModel.canImport)
-            }
-
-            if let overview = viewModel.overview {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12)], spacing: 12) {
-                    metricCard("Date Span", value: viewModel.dateRangeText)
-                    metricCard("Threads", value: "\(overview.threadsInDateRange)")
-                    metricCard("Already Imported", value: viewModel.settings.skipAlreadyImported ? "\(overview.alreadyImported)" : "Off")
-                    metricCard("Pending", value: "\(overview.pendingToImport)")
-                }
-            }
+            .padding(16)
         }
     }
 
     private var progressPage: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Step 4")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text("Import progress")
-                .font(.title.weight(.semibold))
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Step 4: Import Progress")
+                .font(.headline)
 
             HStack {
                 Text("Progress")
-                    .font(.headline)
                 Spacer()
                 Text("\(Int(viewModel.progress.fraction * 100))%")
-                    .font(.title3.monospacedDigit().weight(.semibold))
+                    .font(.headline.monospacedDigit())
             }
 
             ProgressView(value: viewModel.progress.fraction)
                 .progressViewStyle(.linear)
 
-            HStack(spacing: 14) {
-                counter(label: "Imported", value: viewModel.progress.importedThisRun)
-                counter(label: "Skipped", value: viewModel.progress.skippedThisRun)
-                counter(label: "Failed", value: viewModel.progress.failedThisRun)
-                counter(label: "Total", value: viewModel.progress.totalThreads)
+            HStack(spacing: 10) {
+                metricMini("Imported", value: "\(viewModel.progress.importedThisRun)")
+                metricMini("Skipped", value: "\(viewModel.progress.skippedThisRun)")
+                metricMini("Failed", value: "\(viewModel.progress.failedThisRun)")
+                metricMini("Total", value: "\(viewModel.progress.totalThreads)")
             }
 
-            if let currentID = viewModel.progress.currentTweetID {
-                Text("Current tweet: \(currentID)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Button("Cancel Import") {
-                    viewModel.cancelImport()
-                }
-                .buttonStyle(.bordered)
-                .disabled(!viewModel.isImporting)
-
-                Spacer()
-
-                Text(viewModel.progress.statusMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            logPanel
-        }
-    }
-
-    private var donePage: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Step 5")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text("Import finished")
-                .font(.title.weight(.semibold))
-
-            if let summary = viewModel.lastRunSummary {
-                HStack(spacing: 14) {
-                    metricCard("Imported", value: "\(summary.importedThisRun)")
-                    metricCard("Skipped", value: "\(summary.skippedThisRun)")
-                    metricCard("Failed", value: "\(summary.failedThisRun)")
-                    metricCard("Already Imported", value: "\(summary.alreadyImported)")
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("If this app saved you time, support the project:")
-                    .font(.headline)
-
-                Link("Buy me a coffee", destination: URL(string: "https://coff.ee/jonathunky")!)
-                Text("USDT TRC20: TKa6wmqpLvMQwacU1wnPgFWZHFaDRV9jFs")
-                    .textSelection(.enabled)
-                    .font(.footnote.monospaced())
-                    .foregroundStyle(.secondary)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.secondary.opacity(0.08))
-            )
-
-            Text("You can now open Day One and browse imported entries.")
+            Text(viewModel.progress.statusMessage)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    private var logPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Activity")
-                    .font(.headline)
-                Spacer()
-                Button("Clear") {
-                    viewModel.clearLog()
-                }
-                .buttonStyle(.bordered)
-            }
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 6) {
+                LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(viewModel.logLines.enumerated()), id: \.offset) { _, line in
                         Text(line)
                             .font(.caption.monospaced())
-                            .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
-            .frame(minHeight: 150, maxHeight: 220)
+            .frame(maxHeight: .infinity)
+            .background(cardBackground)
         }
+        .padding(16)
     }
 
-    private func stepBadge(for step: WizardStep) -> some View {
-        let isCurrent = viewModel.currentStep == step
-        let isCompleted = step.rawValue < viewModel.currentStep.rawValue
+    private var donePage: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Import Finished")
+                .font(.headline)
 
-        return HStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(isCurrent ? Color.accentColor : Color.secondary.opacity(0.18))
-                Text(step.shortLabel)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(isCurrent ? Color.white : .primary)
-            }
-            .frame(width: 26, height: 26)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(step.title)
-                    .font(.caption.weight(.semibold))
-                if isCompleted {
-                    Text("Done")
-                        .font(.caption2)
-                        .foregroundStyle(.green)
+            if let summary = viewModel.lastRunSummary {
+                HStack(spacing: 10) {
+                    metricMini("Imported", value: "\(summary.importedThisRun)")
+                    metricMini("Skipped", value: "\(summary.skippedThisRun)")
+                    metricMini("Failed", value: "\(summary.failedThisRun)")
                 }
             }
+
+            Text("You can now review imported entries in Day One.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Spacer()
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(16)
+    }
+
+    private func stepChip(_ step: WizardStep) -> some View {
+        let isCurrent = step == viewModel.currentStep
+        let isDone = step.rawValue < viewModel.currentStep.rawValue
+
+        return HStack(spacing: 6) {
+            Circle()
+                .fill(isCurrent ? Color.accentColor : Color.secondary.opacity(0.25))
+                .frame(width: 18, height: 18)
+                .overlay {
+                    if isDone {
+                        Image(systemName: "checkmark")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Text(step.shortLabel)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(isCurrent ? .white : .primary)
+                    }
+                }
+            Text(step.title)
+                .font(.caption)
+                .foregroundStyle(isCurrent ? .primary : .secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isCurrent ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08))
+            Capsule(style: .continuous)
+                .fill(isCurrent ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
         )
     }
 
     private func prerequisiteRow(_ check: PrerequisiteCheck) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: check.state.symbolName)
-                .font(.title3)
-                .foregroundStyle(prereqColor(for: check.state))
-                .frame(width: 24)
+                .foregroundStyle(prereqColor(check.state))
+                .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Text(check.title)
-                        .font(.headline)
-                    if check.isRequired {
-                        Text("Required")
+                        .font(.subheadline.weight(.semibold))
+
+                    if !check.isRequired {
+                        Text("Optional")
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(Color.secondary.opacity(0.15))
-                            )
+                            .padding(.vertical, 2)
+                            .background(Capsule(style: .continuous).fill(Color.secondary.opacity(0.12)))
                     }
                 }
 
                 Text(check.details)
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text(check.state.statusLabel)
-                    .font(.caption)
-                    .foregroundStyle(prereqColor(for: check.state))
+                if check.id == "ollama-localhost" && check.state != .passed {
+                    Button(viewModel.isCheckingPrerequisites ? "Checking..." : "Re-check") {
+                        viewModel.runPrerequisiteChecks()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(viewModel.isCheckingPrerequisites)
+                    .padding(.top, 2)
+                }
             }
 
             Spacer()
         }
-        .padding(14)
+        .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
     }
 
-    private func prereqColor(for state: PrerequisiteState) -> Color {
+    private func prereqColor(_ state: PrerequisiteState) -> Color {
         switch state {
         case .passed:
             return .green
@@ -584,52 +468,36 @@ struct ContentView: View {
         }
     }
 
-    private func metricCard(_ title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private func metricRow(_ title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+            Spacer()
+            Text(value)
+                .font(.headline.monospacedDigit())
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.secondary.opacity(0.08)))
+    }
+
+    private func metricMini(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.headline.monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.secondary.opacity(0.08)))
     }
 
-    private func label(_ title: String) -> some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .frame(minWidth: 140, alignment: .leading)
-    }
-
-    private func counter(label: String, value: Int) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("\(value)")
-                .font(.headline.monospacedDigit())
-        }
-    }
-
-    private var dropZoneBackground: some View {
-        let fillColor: Color
-        if viewModel.isPreparing {
-            fillColor = .accentColor.opacity(0.12)
-        } else if viewModel.hasArchive {
-            fillColor = .green.opacity(0.10)
-        } else {
-            fillColor = Color.secondary.opacity(0.06)
-        }
-
-        return RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(fillColor)
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(Color.secondary.opacity(0.07))
     }
 }
