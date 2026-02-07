@@ -13,8 +13,6 @@ struct ImportSettings: Codable, Equatable, Sendable {
     var ollamaModelName: String = "qwen3"
     var ollamaPrompt: String = "Figure out what subject this tweet is about. Deliver a very short answer, like 'about weather' or 'about Formula 1'. First word must be lowercase. No period at the end."
 
-    static let defaultsKey = "Twixodus.ImportSettings"
-
     static var defaultStartDate: Date {
         Self.configDateFormatter.date(from: "20 March 2006") ?? Date.distantPast
     }
@@ -24,20 +22,11 @@ struct ImportSettings: Codable, Equatable, Sendable {
     }
 
     static func load() -> ImportSettings {
-        guard
-            let data = UserDefaults.standard.data(forKey: defaultsKey),
-            let decoded = try? JSONDecoder().decode(ImportSettings.self, from: data)
-        else {
-            return ImportSettings()
-        }
-        return decoded
+        ImportSettings()
     }
 
     func save() {
-        guard let data = try? JSONEncoder().encode(self) else {
-            return
-        }
-        UserDefaults.standard.set(data, forKey: Self.defaultsKey)
+        // Intentionally no-op: the app is single-run and should not persist settings.
     }
 
     var normalizedReplyJournalName: String? {

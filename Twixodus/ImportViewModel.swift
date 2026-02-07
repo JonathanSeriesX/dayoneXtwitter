@@ -87,11 +87,7 @@ struct PrerequisiteCheck: Identifiable, Sendable {
 @MainActor
 @Observable
 final class ImportViewModel {
-    var settings: ImportSettings {
-        didSet {
-            settings.save()
-        }
-    }
+    var settings: ImportSettings
 
     var currentStep: WizardStep = .drop
     var overview: ArchiveOverview?
@@ -130,9 +126,8 @@ final class ImportViewModel {
     private var checksTask: Task<Void, Never>?
 
     init() {
-        let loadedSettings = ImportSettings.load()
-        self.settings = loadedSettings
-        self.preflightChecks = Self.placeholderChecks(llmEnabled: loadedSettings.processTitlesWithLLM)
+        self.settings = ImportSettings()
+        self.preflightChecks = Self.placeholderChecks()
     }
 
     var canImport: Bool {
@@ -277,13 +272,10 @@ final class ImportViewModel {
     func runPrerequisiteChecks() {
         checksTask?.cancel()
         isCheckingPrerequisites = true
-        preflightChecks = Self.placeholderChecks(llmEnabled: settings.processTitlesWithLLM)
-
-        let settingsSnapshot = settings
-        let hasArchive = activeArchive != nil
+        preflightChecks = Self.placeholderChecks()
 
         checksTask = Task {
-            let checks = await Self.evaluatePrerequisites(settings: settingsSnapshot, hasArchive: hasArchive)
+            let checks = await Self.evaluatePrerequisites()
             guard !Task.isCancelled else { return }
             self.preflightChecks = checks
             self.isCheckingPrerequisites = false
@@ -323,7 +315,8 @@ final class ImportViewModel {
         preparedContext = nil
         overview = nil
         lastRunSummary = nil
-        preflightChecks = Self.placeholderChecks(llmEnabled: settings.processTitlesWithLLM)
+        settings = ImportSettings()
+        preflightChecks = Self.placeholderChecks()
         progress = ImportProgressSnapshot(
             totalThreads: 0,
             alreadyImported: 0,
@@ -457,89 +450,34 @@ final class ImportViewModel {
         }
     }
 
-    private static func placeholderChecks(llmEnabled: Bool) -> [PrerequisiteCheck] {
-        var checks: [PrerequisiteCheck] = [
-            PrerequisiteCheck(
-                id: "archive",
-                title: "Archive selected",
-                details: "Waiting for archive",
-                isRequired: true,
-                state: .checking
-            ),
+    private static func placeholderChecks() -> [PrerequisiteCheck] {
+        [
             PrerequisiteCheck(
                 id: "dayone-app",
-                title: "Day One app installed",
+                title: "Day One app installation",
                 details: "Checking /Applications",
                 isRequired: true,
                 state: .checking
             ),
             PrerequisiteCheck(
                 id: "dayone-cli",
-                title: "Day One CLI installed",
+                title: "Day One CLI installation",
                 details: "Checking dayone executable",
                 isRequired: true,
                 state: .checking
             ),
             PrerequisiteCheck(
-                id: "journals",
-                title: "Target journals available",
-                details: "Checking configured journals",
+                id: "ollama-localhost",
+                title: "Ollama on localhost (optional)",
+                details: "Checking http://localhost:11434/api/tags",
                 isRequired: false,
                 state: .checking
             )
         ]
-
-        if llmEnabled {
-            checks += [
-                PrerequisiteCheck(
-                    id: "ollama-install",
-                    title: "Ollama installed",
-                    details: "Checking ollama command",
-                    isRequired: false,
-                    state: .checking
-                ),
-                PrerequisiteCheck(
-                    id: "ollama-service",
-                    title: "Ollama service reachable",
-                    details: "Checking \(ImportSettings().ollamaAPIURL)",
-                    isRequired: false,
-                    state: .checking
-                ),
-                PrerequisiteCheck(
-                    id: "ollama-model",
-                    title: "Ollama model present",
-                    details: "Checking configured model",
-                    isRequired: false,
-                    state: .checking
-                )
-            ]
-        } else {
-            checks.append(
-                PrerequisiteCheck(
-                    id: "ollama-disabled",
-                    title: "LLM title generation",
-                    details: "Disabled in settings. Ollama checks skipped.",
-                    isRequired: false,
-                    state: .passed
-                )
-            )
-        }
-
-        return checks
     }
 
-    private static func evaluatePrerequisites(settings: ImportSettings, hasArchive: Bool) async -> [PrerequisiteCheck] {
+    private static func evaluatePrerequisites() async -> [PrerequisiteCheck] {
         var checks: [PrerequisiteCheck] = []
-
-        checks.append(
-            PrerequisiteCheck(
-                id: "archive",
-                title: "Archive selected",
-                details: hasArchive ? "Archive is loaded and parsed." : "Drop or choose an archive first.",
-                isRequired: true,
-                state: hasArchive ? .passed : .failed
-            )
-        )
 
         let dayOnePaths = [
             "/Applications/Day One.app",
@@ -550,7 +488,7 @@ final class ImportViewModel {
         checks.append(
             PrerequisiteCheck(
                 id: "dayone-app",
-                title: "Day One app installed",
+                title: "Day One app installation",
                 details: dayOnePath ?? "Install Day One from the Mac App Store.",
                 isRequired: true,
                 state: dayOnePath == nil ? .failed : .passed
@@ -562,177 +500,36 @@ final class ImportViewModel {
         checks.append(
             PrerequisiteCheck(
                 id: "dayone-cli",
-                title: "Day One CLI installed",
+                title: "Day One CLI installation",
                 details: dayOneExecutable ?? "Follow Day One CLI guide and ensure 'dayone' is in PATH.",
                 isRequired: true,
                 state: dayOneExecutable == nil ? .failed : .passed
             )
         )
 
-        if dayOneExecutable != nil {
-            let journalCheck = dayOneCLI.listJournals()
-            if let journalLines = journalCheck.journals {
-                let hasTweets = containsJournal(named: settings.journalName, within: journalLines)
-                let hasReplies = !settings.includeReplies || containsJournal(named: settings.replyJournalName, within: journalLines)
-                let details: String
-                let state: PrerequisiteState
-
-                if hasTweets && hasReplies {
-                    details = "Configured journals are available."
-                    state = .passed
-                } else if hasTweets {
-                    details = "Reply journal '\(settings.replyJournalName)' is missing."
-                    state = .warning
-                } else {
-                    details = "Journal '\(settings.journalName)' was not found."
-                    state = .warning
-                }
-
-                checks.append(
-                    PrerequisiteCheck(
-                        id: "journals",
-                        title: "Target journals available",
-                        details: details,
-                        isRequired: false,
-                        state: state
-                    )
-                )
-            } else {
-                let detail = journalCheck.error ?? "Unknown error"
-                checks.append(
-                    PrerequisiteCheck(
-                        id: "journals",
-                        title: "Target journals available",
-                        details: "Could not verify journals: \(detail)",
-                        isRequired: false,
-                        state: .warning
-                    )
-                )
-            }
-        } else {
-            checks.append(
-                PrerequisiteCheck(
-                    id: "journals",
-                    title: "Target journals available",
-                    details: "Skipped because Day One CLI is missing.",
-                    isRequired: false,
-                    state: .warning
-                )
+        let ollamaReachable = await isOllamaLocalhostReachable()
+        checks.append(
+            PrerequisiteCheck(
+                id: "ollama-localhost",
+                title: "Ollama on localhost (optional)",
+                details: ollamaReachable
+                    ? "Responded from http://localhost:11434/api/tags."
+                    : "No response from localhost. Start Ollama and click Re-check.",
+                isRequired: false,
+                state: ollamaReachable ? .passed : .warning
             )
-        }
-
-        if settings.processTitlesWithLLM {
-            let ollamaPath = pathForCommand("ollama")
-            checks.append(
-                PrerequisiteCheck(
-                    id: "ollama-install",
-                    title: "Ollama installed",
-                    details: ollamaPath ?? "Install Ollama if you want automatic thread titles.",
-                    isRequired: false,
-                    state: ollamaPath == nil ? .warning : .passed
-                )
-            )
-
-            if ollamaPath != nil {
-                let apiReachable = await isOllamaAPIReachable(apiURL: settings.ollamaAPIURL)
-                checks.append(
-                    PrerequisiteCheck(
-                        id: "ollama-service",
-                        title: "Ollama service reachable",
-                        details: apiReachable
-                            ? "Ollama API responded at \(settings.ollamaAPIURL)."
-                            : "Ollama API did not respond. Start Ollama or run 'ollama serve'.",
-                        isRequired: false,
-                        state: apiReachable ? .passed : .warning
-                    )
-                )
-
-                let hasModel = ollamaModelExists(modelName: settings.ollamaModelName)
-                checks.append(
-                    PrerequisiteCheck(
-                        id: "ollama-model",
-                        title: "Ollama model present",
-                        details: hasModel
-                            ? "Model '\(settings.ollamaModelName)' is available."
-                            : "Model '\(settings.ollamaModelName)' not found. Pull it before importing.",
-                        isRequired: false,
-                        state: hasModel ? .passed : .warning
-                    )
-                )
-            } else {
-                checks.append(
-                    PrerequisiteCheck(
-                        id: "ollama-service",
-                        title: "Ollama service reachable",
-                        details: "Skipped because Ollama is not installed.",
-                        isRequired: false,
-                        state: .warning
-                    )
-                )
-                checks.append(
-                    PrerequisiteCheck(
-                        id: "ollama-model",
-                        title: "Ollama model present",
-                        details: "Skipped because Ollama is not installed.",
-                        isRequired: false,
-                        state: .warning
-                    )
-                )
-            }
-        } else {
-            checks.append(
-                PrerequisiteCheck(
-                    id: "ollama-disabled",
-                    title: "LLM title generation",
-                    details: "Disabled in settings. Ollama checks skipped.",
-                    isRequired: false,
-                    state: .passed
-                )
-            )
-        }
+        )
 
         return checks
     }
 
-    private static func containsJournal(named expectedName: String, within lines: [String]) -> Bool {
-        let expected = expectedName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !expected.isEmpty else { return false }
-
-        return lines.contains { raw in
-            let line = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if line == expected {
-                return true
-            }
-            if line.hasPrefix("\(expected) (") {
-                return true
-            }
-            if line.contains("\"\(expected)\"") {
-                return true
-            }
-            return false
-        }
-    }
-
-    private static func isOllamaAPIReachable(apiURL: String) async -> Bool {
-        guard let baseURL = URL(string: apiURL),
-              let host = baseURL.host,
-              let scheme = baseURL.scheme
-        else {
+    private static func isOllamaLocalhostReachable() async -> Bool {
+        guard let url = URL(string: "http://localhost:11434/api/tags") else {
             return false
         }
 
-        var components = URLComponents()
-        components.scheme = scheme
-        components.host = host
-        components.port = baseURL.port ?? 11434
-        components.path = "/api/tags"
-
-        guard let tagsURL = components.url else {
-            return false
-        }
-
-        var request = URLRequest(url: tagsURL)
-        request.timeoutInterval = 3
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 2.5
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
@@ -741,32 +538,6 @@ final class ImportViewModel {
         } catch {
             return false
         }
-    }
-
-    private static func ollamaModelExists(modelName: String) -> Bool {
-        let result = runCommand(executablePath: "/usr/bin/env", arguments: ["ollama", "list"])
-        guard result.exitCode == 0 else {
-            return false
-        }
-
-        let expected = modelName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !expected.isEmpty else { return false }
-
-        return result.stdout
-            .split(separator: "\n")
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            .contains(where: { line in
-                line.hasPrefix(expected + " ") || line.hasPrefix(expected + "\t") || line.hasPrefix(expected + ":")
-            })
-    }
-
-    private static func pathForCommand(_ command: String) -> String? {
-        let result = runCommand(executablePath: "/usr/bin/which", arguments: [command])
-        guard result.exitCode == 0 else {
-            return nil
-        }
-        let output = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        return output.isEmpty ? nil : output
     }
 
     private static func runCommand(executablePath: String, arguments: [String]) -> (exitCode: Int32, stdout: String, stderr: String) {

@@ -30,6 +30,10 @@ final class TwixodusAppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.styleMask.insert(.fullSizeContentView)
+        window.styleMask.remove(.resizable)
+        window.setContentSize(NSSize(width: 900, height: 600))
+        window.minSize = NSSize(width: 900, height: 600)
+        window.maxSize = NSSize(width: 900, height: 600)
 
         if #available(macOS 11.0, *) {
             window.titlebarSeparatorStyle = .none
@@ -46,7 +50,7 @@ struct TwixodusApp: App {
             ContentView()
         }
         .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 1080, height: 900)
+        .defaultSize(width: 900, height: 600)
         .windowResizability(.contentSize)
     }
 }
