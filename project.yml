@@ -1,0 +1,29 @@
+name: Twixodus
+options:
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    MACOSX_DEPLOYMENT_TARGET: 15.0
+
+targets:
+  Twixodus:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Twixodus
+        excludes:
+          - Assets.xcassets
+          - Preview Content
+    resources:
+      - path: Twixodus/Assets.xcassets
+      - path: Twixodus/Preview Content
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonathan.twixodus
+        PRODUCT_NAME: Twixodus
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Twixodus
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        CODE_SIGN_STYLE: Automatic
