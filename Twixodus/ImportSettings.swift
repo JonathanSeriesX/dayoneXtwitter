@@ -1,17 +1,17 @@
 import Foundation
 
 struct ImportSettings: Codable, Equatable, Sendable {
-    var journalName: String = "Tweets"
+    var journalName: String = AppStrings.Defaults.journalName
     var includeReplies: Bool = true
-    var replyJournalName: String = "Twitter Replies"
+    var replyJournalName: String = AppStrings.Defaults.replyJournalName
     var ignoreRetweets: Bool = false
     var skipAlreadyImported: Bool = false
     var startDate: Date = ImportSettings.defaultStartDate
     var endDate: Date = ImportSettings.defaultEndDate
     var processTitlesWithLLM: Bool = true
-    var ollamaAPIURL: String = "http://localhost:11434/api/generate"
-    var ollamaModelName: String = "qwen3"
-    var ollamaPrompt: String = "Figure out what subject this tweet is about. Deliver a very short answer, like 'about weather' or 'about Formula 1'. First word must be lowercase. No period at the end."
+    var ollamaAPIURL: String = AppStrings.Defaults.ollamaAPIURL
+    var ollamaModelName: String = AppStrings.Defaults.ollamaModelName
+    var ollamaPrompt: String = AppStrings.Defaults.ollamaPrompt
 
     static var defaultStartDate: Date {
         Self.configDateFormatter.date(from: "20 March 2006") ?? Date.distantPast

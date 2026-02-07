@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 
 struct ContentView: View {
     @State private var viewModel = ImportViewModel()
@@ -15,18 +16,18 @@ struct ContentView: View {
         }
         .frame(width: 900, height: 600)
         .containerBackground(.regularMaterial, for: .window)
-        .alert("Import Error", isPresented: $viewModel.isShowingError) {
-            Button("OK", role: .cancel) {}
+        .alert(AppStrings.Alert.importErrorTitle, isPresented: $viewModel.isShowingError) {
+            Button(AppStrings.Alert.okButton, role: .cancel) {}
         } message: {
             Text(viewModel.errorMessage)
         }
-        .onChange(of: viewModel.settings.processTitlesWithLLM) { _, _ in
-            if viewModel.currentStep == .prerequisites {
-                viewModel.runPrerequisiteChecks()
+        .onChange(of: viewModel.settings.startDate) { _, _ in
+            if viewModel.currentStep == .settings && viewModel.hasArchive && !viewModel.isImporting {
+                viewModel.refreshPreview()
             }
         }
-        .onChange(of: viewModel.settings.skipAlreadyImported) { _, _ in
-            if viewModel.hasArchive && !viewModel.isPreparing && !viewModel.isImporting {
+        .onChange(of: viewModel.settings.endDate) { _, _ in
+            if viewModel.currentStep == .settings && viewModel.hasArchive && !viewModel.isImporting {
                 viewModel.refreshPreview()
             }
         }
@@ -63,42 +64,42 @@ struct ContentView: View {
             switch viewModel.currentStep {
             case .drop:
                 Spacer()
-                Button("Continue") {
+                Button(AppStrings.Navigation.continueButton) {
                     viewModel.goToPrerequisitesStep()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!viewModel.canProceedFromDrop)
 
             case .prerequisites:
-                Button("Back") {
+                Button(AppStrings.Navigation.backButton) {
                     viewModel.currentStep = .drop
                 }
                 .buttonStyle(.bordered)
 
                 Spacer()
 
-                Button("Continue") {
+                Button(AppStrings.Navigation.continueButton) {
                     viewModel.goToSettingsStep()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!viewModel.canProceedFromPrerequisites)
 
             case .settings:
-                Button("Back") {
+                Button(AppStrings.Navigation.backButton) {
                     viewModel.goBackFromSettings()
                 }
                 .buttonStyle(.bordered)
 
                 Spacer()
 
-                Button(viewModel.isImporting ? "Importing..." : "Start Import") {
+                Button(viewModel.isImporting ? AppStrings.Navigation.importingButton : AppStrings.Navigation.startImportButton) {
                     viewModel.startImport()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!viewModel.canImport)
 
             case .progress:
-                Button("Back") {
+                Button(AppStrings.Navigation.backButton) {
                     viewModel.goBackFromProgress()
                 }
                 .buttonStyle(.bordered)
@@ -106,7 +107,7 @@ struct ContentView: View {
 
                 Spacer()
 
-                Button("Cancel Import") {
+                Button(AppStrings.Navigation.cancelImportButton) {
                     viewModel.cancelImport()
                 }
                 .buttonStyle(.bordered)
@@ -114,8 +115,8 @@ struct ContentView: View {
 
             case .done:
                 Spacer()
-                Button("Import Another Archive") {
-                    viewModel.restartWithNewArchive()
+                Button(AppStrings.Navigation.closeButton) {
+                    NSApplication.shared.terminate(nil)
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -126,7 +127,7 @@ struct ContentView: View {
 
     private var dropPage: some View {
         VStack(spacing: 12) {
-            Text("Step 1: Drop Archive")
+            Text(AppStrings.DropStep.title)
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -134,9 +135,9 @@ struct ContentView: View {
                 VStack(spacing: 10) {
                     ProgressView()
                         .controlSize(.large)
-                    Text("Analyzing archive")
+                    Text(AppStrings.DropStep.analyzingTitle)
                         .font(.headline)
-                    Text("Please wait while archive stats are generated.")
+                    Text(AppStrings.DropStep.analyzingDetails)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -144,9 +145,9 @@ struct ContentView: View {
                 .background(cardBackground)
             } else if let overview = viewModel.overview {
                 VStack(spacing: 14) {
-                    metricRow("Tweets", value: "\(overview.totalTweets)")
-                    metricRow("Threads", value: "\(overview.threadsInDateRange)")
-                    metricRow("Date Range", value: viewModel.dateRangeText)
+                    metricRow(AppStrings.DropStep.tweetsLabel, value: "\(overview.totalTweets)")
+                    metricRow(AppStrings.DropStep.threadsLabel, value: "\(overview.threadsInDateRange)")
+                    metricRow(AppStrings.DropStep.dateRangeLabel, value: viewModel.dateRangeText)
                 }
                 .frame(maxWidth: 500)
                 .padding(20)
@@ -157,12 +158,12 @@ struct ContentView: View {
                     Image(systemName: "square.and.arrow.down.on.square.fill")
                         .font(.system(size: 52))
                         .symbolRenderingMode(.hierarchical)
-                    Text("Drag and drop here")
+                    Text(AppStrings.DropStep.dragTitle)
                         .font(.title3.weight(.semibold))
-                    Text("Twitter archive folder or .zip")
+                    Text(AppStrings.DropStep.dragSubtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Button("Choose Archive") {
+                    Button(AppStrings.DropStep.chooseArchiveButton) {
                         viewModel.chooseArchive()
                     }
                     .buttonStyle(.borderedProminent)
@@ -189,16 +190,31 @@ struct ContentView: View {
 
     private var prerequisitesPage: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Step 2: Pre-requisites")
+            Text(AppStrings.PrerequisitesStep.title)
                 .font(.headline)
 
-            Text("Please create a Day One journal for tweets and for replies before importing.")
+            Text(AppStrings.PrerequisitesStep.intro)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 10) {
                 ForEach(viewModel.preflightChecks) { check in
                     prerequisiteRow(check)
+                }
+            }
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    Text(AppStrings.PrerequisitesStep.ollamaURLLabel)
+                        .foregroundStyle(.secondary)
+                    TextField(AppStrings.PrerequisitesStep.ollamaURLPlaceholder, text: $viewModel.settings.ollamaAPIURL)
+                        .textFieldStyle(.roundedBorder)
+                }
+                GridRow {
+                    Text(AppStrings.PrerequisitesStep.modelLabel)
+                        .foregroundStyle(.secondary)
+                    TextField(AppStrings.PrerequisitesStep.modelPlaceholder, text: $viewModel.settings.ollamaModelName)
+                        .textFieldStyle(.roundedBorder)
                 }
             }
 
@@ -213,25 +229,25 @@ struct ContentView: View {
     private var settingsPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Step 3: Import Settings")
+                Text(AppStrings.SettingsStep.title)
                     .font(.headline)
 
                 if let username = viewModel.detectedUsername {
-                    Text("Archive user: @\(username)")
+                    Text("\(AppStrings.SettingsStep.archiveUserPrefix)\(username)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
                     GridRow {
-                        Text("Tweet Journal")
+                        Text(AppStrings.SettingsStep.tweetJournalLabel)
                             .foregroundStyle(.secondary)
-                        TextField("Tweets", text: $viewModel.settings.journalName)
+                        TextField(AppStrings.SettingsStep.tweetJournalPlaceholder, text: $viewModel.settings.journalName)
                             .textFieldStyle(.roundedBorder)
                     }
 
                     GridRow {
-                        Text("Import Replies")
+                        Text(AppStrings.SettingsStep.importRepliesLabel)
                             .foregroundStyle(.secondary)
                         Toggle("", isOn: $viewModel.settings.includeReplies)
                             .labelsHidden()
@@ -239,77 +255,39 @@ struct ContentView: View {
 
                     if viewModel.settings.includeReplies {
                         GridRow {
-                            Text("Reply Journal")
+                            Text(AppStrings.SettingsStep.replyJournalLabel)
                                 .foregroundStyle(.secondary)
-                            TextField("Twitter Replies", text: $viewModel.settings.replyJournalName)
+                            TextField(AppStrings.SettingsStep.replyJournalPlaceholder, text: $viewModel.settings.replyJournalName)
                                 .textFieldStyle(.roundedBorder)
                         }
                     }
 
                     GridRow {
-                        Text("Ignore Retweets")
+                        Text(AppStrings.SettingsStep.ignoreRetweetsLabel)
                             .foregroundStyle(.secondary)
                         Toggle("", isOn: $viewModel.settings.ignoreRetweets)
                             .labelsHidden()
                     }
 
                     GridRow {
-                        Text("Skip Already Imported")
-                            .foregroundStyle(.secondary)
-                        Toggle("", isOn: $viewModel.settings.skipAlreadyImported)
-                            .labelsHidden()
-                    }
-
-                    GridRow {
-                        Text("Date Range")
+                        Text(AppStrings.SettingsStep.dateRangeLabel)
                             .foregroundStyle(.secondary)
                         HStack(spacing: 8) {
                             DatePicker("", selection: $viewModel.settings.startDate, displayedComponents: .date)
                                 .labelsHidden()
-                            Text("-")
+                            Text(AppStrings.SettingsStep.dateRangeSeparator)
                             DatePicker("", selection: $viewModel.settings.endDate, displayedComponents: .date)
                                 .labelsHidden()
                         }
                     }
-
-                    GridRow {
-                        Text("LLM Titles")
-                            .foregroundStyle(.secondary)
-                        Toggle("", isOn: $viewModel.settings.processTitlesWithLLM)
-                            .labelsHidden()
-                    }
-                }
-
-                if viewModel.settings.processTitlesWithLLM {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Ollama API URL", text: $viewModel.settings.ollamaAPIURL)
-                            .textFieldStyle(.roundedBorder)
-                        TextField("Ollama model", text: $viewModel.settings.ollamaModelName)
-                            .textFieldStyle(.roundedBorder)
-                        TextField("Prompt", text: $viewModel.settings.ollamaPrompt, axis: .vertical)
-                            .lineLimit(2 ... 4)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                }
-
-                HStack {
-                    Button("Refresh Preview") {
-                        viewModel.refreshPreview()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.hasArchive || viewModel.isPreparing || viewModel.isImporting)
-
-                    Button("Defaults") {
-                        viewModel.resetSettingsToDefaults()
-                    }
-                    .buttonStyle(.bordered)
                 }
 
                 if let overview = viewModel.overview {
-                    HStack(spacing: 10) {
-                        metricMini("Threads", value: "\(overview.threadsInDateRange)")
-                        metricMini("Pending", value: "\(overview.pendingToImport)")
-                        metricMini("Imported", value: viewModel.settings.skipAlreadyImported ? "\(overview.alreadyImported)" : "Off")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(AppStrings.SettingsStep.withinDateRangeLabel)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        metricMini(AppStrings.SettingsStep.withinDateRangeThreadsLabel, value: "\(overview.threadsInDateRange)")
                     }
                 }
             }
@@ -319,11 +297,11 @@ struct ContentView: View {
 
     private var progressPage: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Step 4: Import Progress")
+            Text(AppStrings.ProgressStep.title)
                 .font(.headline)
 
             HStack {
-                Text("Progress")
+                Text(AppStrings.ProgressStep.progressLabel)
                 Spacer()
                 Text("\(Int(viewModel.progress.fraction * 100))%")
                     .font(.headline.monospacedDigit())
@@ -333,10 +311,10 @@ struct ContentView: View {
                 .progressViewStyle(.linear)
 
             HStack(spacing: 10) {
-                metricMini("Imported", value: "\(viewModel.progress.importedThisRun)")
-                metricMini("Skipped", value: "\(viewModel.progress.skippedThisRun)")
-                metricMini("Failed", value: "\(viewModel.progress.failedThisRun)")
-                metricMini("Total", value: "\(viewModel.progress.totalThreads)")
+                metricMini(AppStrings.ProgressStep.importedLabel, value: "\(viewModel.progress.importedThisRun)")
+                metricMini(AppStrings.ProgressStep.skippedLabel, value: "\(viewModel.progress.skippedThisRun)")
+                metricMini(AppStrings.ProgressStep.failedLabel, value: "\(viewModel.progress.failedThisRun)")
+                metricMini(AppStrings.ProgressStep.totalLabel, value: "\(viewModel.progress.totalThreads)")
             }
 
             Text(viewModel.progress.statusMessage)
@@ -360,22 +338,54 @@ struct ContentView: View {
 
     private var donePage: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Import Finished")
+            Text(AppStrings.DoneStep.title)
                 .font(.headline)
 
             if let summary = viewModel.lastRunSummary {
                 HStack(spacing: 10) {
-                    metricMini("Imported", value: "\(summary.importedThisRun)")
-                    metricMini("Skipped", value: "\(summary.skippedThisRun)")
-                    metricMini("Failed", value: "\(summary.failedThisRun)")
+                    metricMini(AppStrings.ProgressStep.importedLabel, value: "\(summary.importedThisRun)")
+                    metricMini(AppStrings.ProgressStep.skippedLabel, value: "\(summary.skippedThisRun)")
+                    metricMini(AppStrings.ProgressStep.failedLabel, value: "\(summary.failedThisRun)")
                 }
             }
 
-            Text("You can now review imported entries in Day One.")
+            Text(AppStrings.DoneStep.details)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Spacer()
+            VStack(alignment: .leading, spacing: 8) {
+                Text(AppStrings.DoneStep.donationTitle)
+                    .font(.subheadline.weight(.semibold))
+                Text(AppStrings.DoneStep.donationDetails)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 14) {
+                    if let url = URL(string: AppStrings.DoneStep.buyMeCoffeeURL) {
+                        Link(AppStrings.DoneStep.buyMeCoffeeLabel, destination: url)
+                    }
+
+                    Text("\(AppStrings.DoneStep.usdtLabel) \(AppStrings.DoneStep.usdtAddress)")
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                }
+            }
+
+            Text(AppStrings.DoneStep.logTitle)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(viewModel.logLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.caption.monospaced())
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+            .frame(maxHeight: .infinity)
+            .background(cardBackground)
         }
         .padding(16)
     }
@@ -423,7 +433,7 @@ struct ContentView: View {
                         .font(.subheadline.weight(.semibold))
 
                     if !check.isRequired {
-                        Text("Optional")
+                        Text(AppStrings.PrerequisitesStep.optionalBadge)
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -435,8 +445,8 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if check.id == "ollama-localhost" && check.state != .passed {
-                    Button(viewModel.isCheckingPrerequisites ? "Checking..." : "Re-check") {
+                if check.id == AppStrings.Prerequisites.ollamaID && check.state != .passed {
+                    Button(viewModel.isCheckingPrerequisites ? AppStrings.PrerequisitesStep.checkingButton : AppStrings.PrerequisitesStep.recheckButton) {
                         viewModel.runPrerequisiteChecks()
                     }
                     .buttonStyle(.bordered)

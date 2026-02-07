@@ -15,30 +15,30 @@ enum WizardStep: Int, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .drop:
-            return "Drop Archive"
+            return AppStrings.Wizard.drop
         case .prerequisites:
-            return "Prerequisites"
+            return AppStrings.Wizard.prerequisites
         case .settings:
-            return "Import Settings"
+            return AppStrings.Wizard.settings
         case .progress:
-            return "Import Progress"
+            return AppStrings.Wizard.progress
         case .done:
-            return "Finished"
+            return AppStrings.Wizard.done
         }
     }
 
     var shortLabel: String {
         switch self {
         case .drop:
-            return "1"
+            return AppStrings.Wizard.dropShort
         case .prerequisites:
-            return "2"
+            return AppStrings.Wizard.prerequisitesShort
         case .settings:
-            return "3"
+            return AppStrings.Wizard.settingsShort
         case .progress:
-            return "4"
+            return AppStrings.Wizard.progressShort
         case .done:
-            return "5"
+            return AppStrings.Wizard.doneShort
         }
     }
 }
@@ -65,13 +65,13 @@ enum PrerequisiteState: Sendable {
     var statusLabel: String {
         switch self {
         case .passed:
-            return "Ready"
+            return AppStrings.ViewModel.readyStatus
         case .warning:
-            return "Attention"
+            return AppStrings.ViewModel.attentionStatus
         case .failed:
-            return "Missing"
+            return AppStrings.ViewModel.missingStatus
         case .checking:
-            return "Checking"
+            return AppStrings.ViewModel.checkingStatus
         }
     }
 }
@@ -100,14 +100,14 @@ final class ImportViewModel {
         currentIndex: 0,
         currentTweetID: nil,
         currentCategory: nil,
-        statusMessage: "Drop a Twitter archive folder or zip file to begin."
+        statusMessage: AppStrings.ViewModel.initialStatus
     )
 
     var isDropTargeted = false
     var isPreparing = false
     var isImporting = false
     var isCheckingPrerequisites = false
-    var statusMessage = "Drop a Twitter archive folder or zip file to begin."
+    var statusMessage = AppStrings.ViewModel.initialStatus
 
     var preflightChecks: [PrerequisiteCheck]
     var logLines: [String] = []
@@ -124,6 +124,8 @@ final class ImportViewModel {
     private var analysisTask: Task<Void, Never>?
     private var importTask: Task<Void, Never>?
     private var checksTask: Task<Void, Never>?
+    private var archivePrepareSequence = 0
+    private var previewRefreshSequence = 0
 
     init() {
         self.settings = ImportSettings()
@@ -161,17 +163,17 @@ final class ImportViewModel {
     }
 
     var dateRangeText: String {
-        guard let overview else { return "-" }
+        guard let overview else { return AppStrings.ViewModel.dash }
         guard let first = overview.earliestTweetDate, let last = overview.latestTweetDate else {
-            return "-"
+            return AppStrings.ViewModel.dash
         }
         return "\(Self.shortDateFormatter.string(from: first)) - \(Self.shortDateFormatter.string(from: last))"
     }
 
     func chooseArchive() {
         let panel = NSOpenPanel()
-        panel.title = "Select Twitter Archive"
-        panel.message = "Choose a Twitter archive folder or zip file"
+        panel.title = AppStrings.ViewModel.selectArchiveTitle
+        panel.message = AppStrings.ViewModel.selectArchiveMessage
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
@@ -184,21 +186,21 @@ final class ImportViewModel {
 
     func handleDrop(providers: [NSItemProvider]) -> Bool {
         guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
-            setError("Drop a local folder or .zip archive.")
+            setError(AppStrings.ViewModel.dropInvalidItem)
             return false
         }
 
         provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
             if let error {
                 Task { @MainActor in
-                    self.setError("Failed to read dropped item: \(error.localizedDescription)")
+                    self.setError(AppStrings.ViewModel.failedToReadDroppedItem(error.localizedDescription))
                 }
                 return
             }
 
             guard let url = Self.extractFileURL(from: item) else {
                 Task { @MainActor in
-                    self.setError("Could not decode dropped file URL.")
+                    self.setError(AppStrings.ViewModel.failedToDecodeDroppedURL)
                 }
                 return
             }
@@ -212,6 +214,8 @@ final class ImportViewModel {
     }
 
     func processDroppedURL(_ droppedURL: URL) {
+        archivePrepareSequence += 1
+        let prepareSequence = archivePrepareSequence
         analysisTask?.cancel()
         importTask?.cancel()
         checksTask?.cancel()
@@ -223,23 +227,34 @@ final class ImportViewModel {
         isPreparing = true
         isImporting = false
         currentStep = .drop
-        statusMessage = "Analyzing archive..."
-        appendLog("Analyzing: \(droppedURL.path)")
+        statusMessage = AppStrings.ViewModel.analyzingArchiveStatus
+        appendLog(AppStrings.ViewModel.analyzingLog(droppedURL.path))
 
         let settingsSnapshot = settings
 
         analysisTask = Task {
             do {
                 let context = try await coordinator.resolveAndPrepare(dropURL: droppedURL, settings: settingsSnapshot)
+                guard !Task.isCancelled, prepareSequence == self.archivePrepareSequence else { return }
                 applyPreparedContext(context)
-                statusMessage = "Archive ready. Review stats, then continue."
-                appendLog("Archive ready: \(context.overview.totalTweets) tweets, \(context.overview.threadsInDateRange) thread(s) in date range.")
+                applyArchiveDatePrefill(from: context.overview)
+                statusMessage = AppStrings.ViewModel.archiveReadyStatus
+                appendLog(
+                    AppStrings.ViewModel.archiveReadyLog(
+                        totalTweets: context.overview.totalTweets,
+                        threadsInRange: context.overview.threadsInDateRange
+                    )
+                )
 
                 runPrerequisiteChecks()
+            } catch is CancellationError {
+                return
             } catch {
+                guard prepareSequence == self.archivePrepareSequence else { return }
                 setError(error.localizedDescription)
             }
 
+            guard prepareSequence == self.archivePrepareSequence else { return }
             isPreparing = false
         }
     }
@@ -249,22 +264,28 @@ final class ImportViewModel {
             return
         }
 
+        previewRefreshSequence += 1
+        let refreshSequence = previewRefreshSequence
         analysisTask?.cancel()
         isPreparing = true
-        statusMessage = "Refreshing preview..."
+        statusMessage = AppStrings.ViewModel.refreshingPreviewStatus
 
         let settingsSnapshot = settings
         analysisTask = Task {
             do {
                 let context = try await coordinator.refresh(archive: archive, settings: settingsSnapshot)
+                guard !Task.isCancelled, refreshSequence == self.previewRefreshSequence else { return }
                 applyPreparedContext(context)
-                statusMessage = "Preview refreshed."
-                appendLog("Preview refreshed with updated settings.")
-                runPrerequisiteChecks()
+                statusMessage = AppStrings.ViewModel.previewRefreshedStatus
+                appendLog(AppStrings.ViewModel.previewRefreshedLog)
+            } catch is CancellationError {
+                return
             } catch {
+                guard refreshSequence == self.previewRefreshSequence else { return }
                 setError(error.localizedDescription)
             }
 
+            guard refreshSequence == self.previewRefreshSequence else { return }
             isPreparing = false
         }
     }
@@ -273,9 +294,10 @@ final class ImportViewModel {
         checksTask?.cancel()
         isCheckingPrerequisites = true
         preflightChecks = Self.placeholderChecks()
+        let settingsSnapshot = settings
 
         checksTask = Task {
-            let checks = await Self.evaluatePrerequisites()
+            let checks = await Self.evaluatePrerequisites(settings: settingsSnapshot)
             guard !Task.isCancelled else { return }
             self.preflightChecks = checks
             self.isCheckingPrerequisites = false
@@ -291,10 +313,36 @@ final class ImportViewModel {
 
     func goToSettingsStep() {
         guard canProceedFromPrerequisites else {
-            setError("Please satisfy required prerequisites before continuing.")
+            setError(AppStrings.ViewModel.requiredPrereqError)
             return
         }
-        currentStep = .settings
+
+        checksTask?.cancel()
+        isCheckingPrerequisites = true
+        let settingsSnapshot = settings
+
+        checksTask = Task {
+            let checks = await Self.evaluatePrerequisites(settings: settingsSnapshot)
+            guard !Task.isCancelled else { return }
+
+            self.preflightChecks = checks
+            self.isCheckingPrerequisites = false
+
+            let requiredPassed = checks.filter(\.isRequired).allSatisfy { $0.state == .passed }
+            guard requiredPassed else {
+                self.setError(AppStrings.ViewModel.requiredPrereqError)
+                return
+            }
+
+            let ollamaReady = Self.ollamaTitlesEnabled(from: checks)
+            self.settings.processTitlesWithLLM = ollamaReady
+            self.currentStep = .settings
+            self.appendLog(
+                ollamaReady
+                    ? AppStrings.ViewModel.llmEnabledLog
+                    : AppStrings.ViewModel.llmDisabledLog
+            )
+        }
     }
 
     func goBackFromSettings() {
@@ -326,30 +374,30 @@ final class ImportViewModel {
             currentIndex: 0,
             currentTweetID: nil,
             currentCategory: nil,
-            statusMessage: "Drop a Twitter archive folder or zip file to begin."
+            statusMessage: AppStrings.ViewModel.initialStatus
         )
-        statusMessage = "Drop a Twitter archive folder or zip file to begin."
+        statusMessage = AppStrings.ViewModel.resetFlowStatus
         currentStep = .drop
-        appendLog("Reset flow. Waiting for a new archive.")
+        appendLog(AppStrings.ViewModel.resetFlowLog)
     }
 
     func startImport() {
         guard !isImporting else { return }
         guard let archive = activeArchive else {
-            setError("Drop an archive before importing.")
+            setError(AppStrings.ViewModel.missingArchiveError)
             return
         }
 
         guard hasMetRequiredPrerequisites else {
             currentStep = .prerequisites
-            setError("Required prerequisites are not satisfied.")
+            setError(AppStrings.ViewModel.requiredPrereqStartImportError)
             return
         }
 
         isImporting = true
         currentStep = .progress
-        statusMessage = "Preparing import..."
-        appendLog("Import started.")
+        statusMessage = AppStrings.ViewModel.preparingImportStatus
+        appendLog(AppStrings.ViewModel.importStartedLog)
 
         let settingsSnapshot = settings
 
@@ -368,8 +416,8 @@ final class ImportViewModel {
                 lastRunSummary = summary
 
                 if summary.wasCancelled {
-                    statusMessage = "Import cancelled."
-                    appendLog("Import cancelled after \(summary.attemptedThisRun) thread(s).")
+                    statusMessage = AppStrings.ViewModel.importCancelledStatus
+                    appendLog(AppStrings.ViewModel.importCancelledLog(summary.attemptedThisRun))
                     currentStep = .settings
                 } else {
                     statusMessage = summary.statusMessage
@@ -390,13 +438,13 @@ final class ImportViewModel {
     func cancelImport() {
         guard isImporting else { return }
         importTask?.cancel()
-        statusMessage = "Cancelling import..."
-        appendLog("Cancellation requested.")
+        statusMessage = AppStrings.ViewModel.cancellingImportStatus
+        appendLog(AppStrings.ViewModel.cancellationRequestedLog)
     }
 
     func resetSettingsToDefaults() {
         settings = ImportSettings()
-        appendLog("Settings reset to defaults.")
+        appendLog(AppStrings.ViewModel.settingsResetLog)
         runPrerequisiteChecks()
     }
 
@@ -418,8 +466,16 @@ final class ImportViewModel {
             currentIndex: 0,
             currentTweetID: nil,
             currentCategory: nil,
-            statusMessage: "Ready"
+            statusMessage: AppStrings.ViewModel.readyStatus
         )
+    }
+
+    private func applyArchiveDatePrefill(from overview: ArchiveOverview) {
+        guard let earliest = overview.earliestTweetDate, let latest = overview.latestTweetDate else {
+            return
+        }
+        settings.startDate = earliest
+        settings.endDate = latest
     }
 
     private func applyProgress(_ snapshot: ImportProgressSnapshot) {
@@ -436,8 +492,8 @@ final class ImportViewModel {
     private func setError(_ message: String) {
         errorMessage = message
         isShowingError = true
-        statusMessage = "Error"
-        appendLog("Error: \(message)")
+        statusMessage = AppStrings.ViewModel.errorStatus
+        appendLog(AppStrings.ViewModel.errorLog(message))
         isPreparing = false
         isImporting = false
     }
@@ -453,43 +509,43 @@ final class ImportViewModel {
     private static func placeholderChecks() -> [PrerequisiteCheck] {
         [
             PrerequisiteCheck(
-                id: "dayone-app",
-                title: "Day One app installation",
-                details: "Checking /Applications",
+                id: AppStrings.Prerequisites.dayOneAppID,
+                title: AppStrings.Prerequisites.dayOneAppTitle,
+                details: AppStrings.Prerequisites.checkingApplications,
                 isRequired: true,
                 state: .checking
             ),
             PrerequisiteCheck(
-                id: "dayone-cli",
-                title: "Day One CLI installation",
-                details: "Checking dayone executable",
+                id: AppStrings.Prerequisites.dayOneCLIID,
+                title: AppStrings.Prerequisites.dayOneCLITitle,
+                details: AppStrings.Prerequisites.checkingCLI,
                 isRequired: true,
                 state: .checking
             ),
             PrerequisiteCheck(
-                id: "ollama-localhost",
-                title: "Ollama on localhost (optional)",
-                details: "Checking http://localhost:11434/api/tags",
+                id: AppStrings.Prerequisites.ollamaID,
+                title: AppStrings.Prerequisites.ollamaTitle,
+                details: AppStrings.Prerequisites.checkingOllama,
                 isRequired: false,
                 state: .checking
             )
         ]
     }
 
-    private static func evaluatePrerequisites() async -> [PrerequisiteCheck] {
+    private static func evaluatePrerequisites(settings: ImportSettings) async -> [PrerequisiteCheck] {
         var checks: [PrerequisiteCheck] = []
 
         let dayOnePaths = [
-            "/Applications/Day One.app",
-            "\(NSHomeDirectory())/Applications/Day One.app"
+            AppStrings.ViewModel.dayOneAppPathPrimary,
+            "\(NSHomeDirectory())\(AppStrings.ViewModel.dayOneAppPathUserSuffix)"
         ]
 
         let dayOnePath = dayOnePaths.first(where: { FileManager.default.fileExists(atPath: $0) })
         checks.append(
             PrerequisiteCheck(
-                id: "dayone-app",
-                title: "Day One app installation",
-                details: dayOnePath ?? "Install Day One from the Mac App Store.",
+                id: AppStrings.Prerequisites.dayOneAppID,
+                title: AppStrings.Prerequisites.dayOneAppTitle,
+                details: dayOnePath ?? AppStrings.Prerequisites.installDayOneHint,
                 isRequired: true,
                 state: dayOnePath == nil ? .failed : .passed
             )
@@ -499,72 +555,108 @@ final class ImportViewModel {
         let dayOneExecutable = dayOneCLI.installedExecutablePath()
         checks.append(
             PrerequisiteCheck(
-                id: "dayone-cli",
-                title: "Day One CLI installation",
-                details: dayOneExecutable ?? "Follow Day One CLI guide and ensure 'dayone' is in PATH.",
+                id: AppStrings.Prerequisites.dayOneCLIID,
+                title: AppStrings.Prerequisites.dayOneCLITitle,
+                details: dayOneExecutable ?? AppStrings.Prerequisites.installDayOneCLIHints,
                 isRequired: true,
                 state: dayOneExecutable == nil ? .failed : .passed
             )
         )
 
-        let ollamaReachable = await isOllamaLocalhostReachable()
+        let ollamaProbe = await validateOllamaHelloResponse(
+            apiURL: settings.ollamaAPIURL,
+            modelName: settings.ollamaModelName
+        )
         checks.append(
             PrerequisiteCheck(
-                id: "ollama-localhost",
-                title: "Ollama on localhost (optional)",
-                details: ollamaReachable
-                    ? "Responded from http://localhost:11434/api/tags."
-                    : "No response from localhost. Start Ollama and click Re-check.",
+                id: AppStrings.Prerequisites.ollamaID,
+                title: AppStrings.Prerequisites.ollamaRunningTitle,
+                details: ollamaProbe.details,
                 isRequired: false,
-                state: ollamaReachable ? .passed : .warning
+                state: ollamaProbe.passed ? .passed : .warning
             )
         )
 
         return checks
     }
 
-    private static func isOllamaLocalhostReachable() async -> Bool {
-        guard let url = URL(string: "http://localhost:11434/api/tags") else {
-            return false
+    private static func ollamaTitlesEnabled(from checks: [PrerequisiteCheck]) -> Bool {
+        checks.first(where: { $0.id == AppStrings.Prerequisites.ollamaID })?.state == .passed
+    }
+
+    private static func validateOllamaHelloResponse(apiURL: String, modelName: String) async -> (passed: Bool, details: String) {
+        let trimmedModel = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedModel.isEmpty else {
+            return (false, AppStrings.ViewModel.emptyModelError)
+        }
+
+        guard let url = normalizedOllamaGenerateURL(from: apiURL) else {
+            return (false, AppStrings.ViewModel.invalidOllamaURLError)
         }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 2.5
+        request.httpMethod = "POST"
+        request.timeoutInterval = 5
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "model": trimmedModel,
+            "prompt": AppStrings.ViewModel.ollamaHelloPrompt,
+            "stream": false
+        ]
+
+        guard let data = try? JSONSerialization.data(withJSONObject: body) else {
+            return (false, AppStrings.ViewModel.failedEncodeOllamaBodyError)
+        }
+        request.httpBody = data
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return false }
-            return (200 ... 299).contains(http.statusCode)
+            let (responseData, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return (false, AppStrings.ViewModel.missingHTTPResponseError)
+            }
+
+            guard (200 ... 299).contains(http.statusCode) else {
+                let raw = String(data: responseData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let preview = raw.prefix(140)
+                let suffix = raw.count > 140 ? "..." : ""
+                return (false, AppStrings.ViewModel.ollamaHTTPError(statusCode: http.statusCode, preview: String(preview), suffix: suffix))
+            }
+
+            guard
+                let object = try JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+                let responseText = object["response"] as? String
+            else {
+                return (false, AppStrings.ViewModel.unexpectedOllamaResponseError)
+            }
+
+            let normalized = responseText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard normalized == AppStrings.ViewModel.ollamaExpectedHello else {
+                return (false, AppStrings.ViewModel.ollamaUnexpectedAnswer(normalized))
+            }
+
+            return (true, AppStrings.ViewModel.ollamaHelloSuccess)
         } catch {
-            return false
+            return (false, AppStrings.ViewModel.ollamaConnectionFailed(error.localizedDescription))
         }
     }
 
-    private static func runCommand(executablePath: String, arguments: [String]) -> (exitCode: Int32, stdout: String, stderr: String) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-
-            let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-
-            return (
-                process.terminationStatus,
-                String(data: stdoutData, encoding: .utf8) ?? "",
-                String(data: stderrData, encoding: .utf8) ?? ""
-            )
-        } catch {
-            return (-1, "", error.localizedDescription)
+    private static func normalizedOllamaGenerateURL(from raw: String) -> URL? {
+        guard var components = URLComponents(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return nil
         }
+        guard components.scheme != nil, components.host != nil else {
+            return nil
+        }
+
+        let path = components.path.trimmingCharacters(in: .whitespacesAndNewlines)
+        if path.isEmpty || path == "/" {
+            components.path = "/api/generate"
+        } else if path == "/api" {
+            components.path = "/api/generate"
+        }
+
+        return components.url
     }
 
     nonisolated private static func extractFileURL(from item: NSSecureCoding?) -> URL? {
