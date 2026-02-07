@@ -21,15 +21,8 @@ struct ContentView: View {
         } message: {
             Text(viewModel.errorMessage)
         }
-        .onChange(of: viewModel.settings.startDate) { _, _ in
-            if viewModel.currentStep == .settings && viewModel.hasArchive && !viewModel.isImporting {
-                viewModel.refreshPreview()
-            }
-        }
-        .onChange(of: viewModel.settings.endDate) { _, _ in
-            if viewModel.currentStep == .settings && viewModel.hasArchive && !viewModel.isImporting {
-                viewModel.refreshPreview()
-            }
+        .onChange(of: viewModel.settings) { _, _ in
+            refreshPreviewIfNeeded()
         }
     }
 
@@ -287,7 +280,11 @@ struct ContentView: View {
                         Text(AppStrings.SettingsStep.withinDateRangeLabel)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.secondary)
-                        metricMini(AppStrings.SettingsStep.withinDateRangeThreadsLabel, value: "\(overview.threadsInDateRange)")
+                        if viewModel.isRefreshingPreview {
+                            metricMiniLoading(AppStrings.SettingsStep.withinDateRangeThreadsLabel)
+                        } else {
+                            metricMini(AppStrings.SettingsStep.withinDateRangeThreadsLabel, value: "\(overview.threadsInDateRange)")
+                        }
                     }
                 }
             }
@@ -321,15 +318,7 @@ struct ContentView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(viewModel.logLines.enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.caption.monospaced())
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
+            LogLinesView(lines: viewModel.logLines)
             .frame(maxHeight: .infinity)
             .background(cardBackground)
         }
@@ -357,19 +346,31 @@ struct ContentView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(viewModel.logLines.enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.caption.monospaced())
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
+            LogLinesView(lines: viewModel.logLines)
             .frame(maxHeight: .infinity)
             .background(cardBackground)
         }
         .padding(16)
+    }
+
+    private func refreshPreviewIfNeeded() {
+        if viewModel.currentStep == .settings && viewModel.hasArchive && !viewModel.isImporting {
+            viewModel.refreshPreview()
+        }
+    }
+
+    private func metricMiniLoading(_ title: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ProgressView()
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.secondary.opacity(0.08)))
     }
 
     private func stepChip(_ step: WizardStep) -> some View {

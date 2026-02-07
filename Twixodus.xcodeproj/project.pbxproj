@@ -7,21 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8F0D94479D6B4A6110F30D73 /* AppStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F0D94469D6B4A6110F30D73 /* AppStrings.swift */; };
+		1AAA2280C95F340AA2A7B6D2 /* LogLinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE295EAE62547A0CD9D2285 /* LogLinesView.swift */; };
+		3B7B5C85978848B92BA2AF8D /* TwitterArchiveModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1180C6E2BFC5A5AC1029D0 /* TwitterArchiveModels.swift */; };
 		43173904E21C9C224469134D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0168F0DCC6C30B255CCA9A79 /* ContentView.swift */; };
+		646D09DDE21363586CC6D1A3 /* AppStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03F04670C24EA535E774C86C /* AppStrings.swift */; };
+		6EAA3BDB8542E5C42E1507D8 /* ImportDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004575D374C45CE8964D6872 /* ImportDomainModels.swift */; };
 		891F09DF51EFAA349A5D62D9 /* ImportSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1944D6BD53DC181A80231B3 /* ImportSettings.swift */; };
 		941C9CDB4830BBD5BBE51660 /* TwitterImportEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5BEE39732226AD731A9865E /* TwitterImportEngine.swift */; };
 		A2C93EA3580DC68E58199747 /* ImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B840E9C35E45861412CD2A0 /* ImportViewModel.swift */; };
+		A36FBC0BE954EDAA696A9769 /* OllamaURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28A15C43BC362CBC510989C /* OllamaURL.swift */; };
+		A6B924C1BB2B35C7FF88800F /* String+Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1133BE7C1EC1C2DFD08824D2 /* String+Utilities.swift */; };
 		C9BC81F399F7A1144BE4676C /* TwixodusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C8EFE452AC6803A3E46F960 /* TwixodusApp.swift */; };
+		ECCCB559D7387C0274D8701D /* DayOneCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C8920AEABDBF2ED3757DA3 /* DayOneCLI.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		004575D374C45CE8964D6872 /* ImportDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportDomainModels.swift; sourceTree = "<group>"; };
 		0168F0DCC6C30B255CCA9A79 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		03F04670C24EA535E774C86C /* AppStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStrings.swift; sourceTree = "<group>"; };
+		1133BE7C1EC1C2DFD08824D2 /* String+Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Utilities.swift"; sourceTree = "<group>"; };
 		4B840E9C35E45861412CD2A0 /* ImportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportViewModel.swift; sourceTree = "<group>"; };
+		7BE295EAE62547A0CD9D2285 /* LogLinesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogLinesView.swift; sourceTree = "<group>"; };
 		7C8EFE452AC6803A3E46F960 /* TwixodusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwixodusApp.swift; sourceTree = "<group>"; };
-		8F0D94469D6B4A6110F30D73 /* AppStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStrings.swift; sourceTree = "<group>"; };
+		9B1180C6E2BFC5A5AC1029D0 /* TwitterArchiveModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitterArchiveModels.swift; sourceTree = "<group>"; };
 		A1944D6BD53DC181A80231B3 /* ImportSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSettings.swift; sourceTree = "<group>"; };
+		A28A15C43BC362CBC510989C /* OllamaURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaURL.swift; sourceTree = "<group>"; };
 		A5BEE39732226AD731A9865E /* TwitterImportEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitterImportEngine.swift; sourceTree = "<group>"; };
+		B1C8920AEABDBF2ED3757DA3 /* DayOneCLI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayOneCLI.swift; sourceTree = "<group>"; };
 		DF18971A37DC06D6359AF59A /* Twixodus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Twixodus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -37,14 +49,26 @@
 		1B036181F26AA4AD150C35EA /* Twixodus */ = {
 			isa = PBXGroup;
 			children = (
-				8F0D94469D6B4A6110F30D73 /* AppStrings.swift */,
+				03F04670C24EA535E774C86C /* AppStrings.swift */,
 				0168F0DCC6C30B255CCA9A79 /* ContentView.swift */,
 				A1944D6BD53DC181A80231B3 /* ImportSettings.swift */,
 				4B840E9C35E45861412CD2A0 /* ImportViewModel.swift */,
 				A5BEE39732226AD731A9865E /* TwitterImportEngine.swift */,
 				7C8EFE452AC6803A3E46F960 /* TwixodusApp.swift */,
+				C78DF34F8CF625F2BBF735DF /* ImportEngine */,
+				D559D50257225E4F40BA72B7 /* UI */,
+				9BE026E222EBABF450B0EEC3 /* Utilities */,
 			);
 			path = Twixodus;
+			sourceTree = "<group>";
+		};
+		9BE026E222EBABF450B0EEC3 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				A28A15C43BC362CBC510989C /* OllamaURL.swift */,
+				1133BE7C1EC1C2DFD08824D2 /* String+Utilities.swift */,
+			);
+			path = Utilities;
 			sourceTree = "<group>";
 		};
 		A64C3773BCB892992A810F0C /* Products */ = {
@@ -53,6 +77,24 @@
 				DF18971A37DC06D6359AF59A /* Twixodus.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		C78DF34F8CF625F2BBF735DF /* ImportEngine */ = {
+			isa = PBXGroup;
+			children = (
+				B1C8920AEABDBF2ED3757DA3 /* DayOneCLI.swift */,
+				004575D374C45CE8964D6872 /* ImportDomainModels.swift */,
+				9B1180C6E2BFC5A5AC1029D0 /* TwitterArchiveModels.swift */,
+			);
+			path = ImportEngine;
+			sourceTree = "<group>";
+		};
+		D559D50257225E4F40BA72B7 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				7BE295EAE62547A0CD9D2285 /* LogLinesView.swift */,
+			);
+			path = UI;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -113,10 +155,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8F0D94479D6B4A6110F30D73 /* AppStrings.swift in Sources */,
+				646D09DDE21363586CC6D1A3 /* AppStrings.swift in Sources */,
 				43173904E21C9C224469134D /* ContentView.swift in Sources */,
+				ECCCB559D7387C0274D8701D /* DayOneCLI.swift in Sources */,
+				6EAA3BDB8542E5C42E1507D8 /* ImportDomainModels.swift in Sources */,
 				891F09DF51EFAA349A5D62D9 /* ImportSettings.swift in Sources */,
 				A2C93EA3580DC68E58199747 /* ImportViewModel.swift in Sources */,
+				1AAA2280C95F340AA2A7B6D2 /* LogLinesView.swift in Sources */,
+				A36FBC0BE954EDAA696A9769 /* OllamaURL.swift in Sources */,
+				A6B924C1BB2B35C7FF88800F /* String+Utilities.swift in Sources */,
+				3B7B5C85978848B92BA2AF8D /* TwitterArchiveModels.swift in Sources */,
 				941C9CDB4830BBD5BBE51660 /* TwitterImportEngine.swift in Sources */,
 				C9BC81F399F7A1144BE4676C /* TwixodusApp.swift in Sources */,
 			);

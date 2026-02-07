@@ -43,10 +43,3 @@ struct ImportSettings: Codable, Equatable, Sendable {
         return formatter
     }()
 }
-
-private extension String {
-    var trimmedNilIfEmpty: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-}
