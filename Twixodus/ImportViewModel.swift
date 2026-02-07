@@ -91,20 +91,11 @@ final class ImportViewModel {
 
     var currentStep: WizardStep = .drop
     var overview: ArchiveOverview?
-    var progress = ImportProgressSnapshot(
-        totalThreads: 0,
-        alreadyImported: 0,
-        importedThisRun: 0,
-        skippedThisRun: 0,
-        failedThisRun: 0,
-        currentIndex: 0,
-        currentTweetID: nil,
-        currentCategory: nil,
-        statusMessage: AppStrings.ViewModel.initialStatus
-    )
+    var progress = ImportViewModel.emptyProgressSnapshot(statusMessage: AppStrings.ViewModel.initialStatus)
 
     var isDropTargeted = false
     var isPreparing = false
+    var isRefreshingPreview = false
     var isImporting = false
     var isCheckingPrerequisites = false
     var statusMessage = AppStrings.ViewModel.initialStatus
@@ -225,6 +216,7 @@ final class ImportViewModel {
         overview = nil
 
         isPreparing = true
+        isRefreshingPreview = false
         isImporting = false
         currentStep = .drop
         statusMessage = AppStrings.ViewModel.analyzingArchiveStatus
@@ -267,6 +259,8 @@ final class ImportViewModel {
         previewRefreshSequence += 1
         let refreshSequence = previewRefreshSequence
         analysisTask?.cancel()
+        // Show a dedicated busy state for Step 3 count recalculation.
+        isRefreshingPreview = true
         isPreparing = true
         statusMessage = AppStrings.ViewModel.refreshingPreviewStatus
 
@@ -286,6 +280,7 @@ final class ImportViewModel {
             }
 
             guard refreshSequence == self.previewRefreshSequence else { return }
+            isRefreshingPreview = false
             isPreparing = false
         }
     }
@@ -365,17 +360,8 @@ final class ImportViewModel {
         lastRunSummary = nil
         settings = ImportSettings()
         preflightChecks = Self.placeholderChecks()
-        progress = ImportProgressSnapshot(
-            totalThreads: 0,
-            alreadyImported: 0,
-            importedThisRun: 0,
-            skippedThisRun: 0,
-            failedThisRun: 0,
-            currentIndex: 0,
-            currentTweetID: nil,
-            currentCategory: nil,
-            statusMessage: AppStrings.ViewModel.initialStatus
-        )
+        progress = Self.emptyProgressSnapshot(statusMessage: AppStrings.ViewModel.initialStatus)
+        isRefreshingPreview = false
         statusMessage = AppStrings.ViewModel.resetFlowStatus
         currentStep = .drop
         appendLog(AppStrings.ViewModel.resetFlowLog)
@@ -457,16 +443,28 @@ final class ImportViewModel {
         activeArchive = context.archive
         overview = context.overview
 
-        progress = ImportProgressSnapshot(
+        progress = Self.emptyProgressSnapshot(
             totalThreads: context.overview.threadsInDateRange,
             alreadyImported: context.overview.alreadyImported,
+            statusMessage: AppStrings.ViewModel.readyStatus
+        )
+    }
+
+    private static func emptyProgressSnapshot(
+        totalThreads: Int = 0,
+        alreadyImported: Int = 0,
+        statusMessage: String
+    ) -> ImportProgressSnapshot {
+        ImportProgressSnapshot(
+            totalThreads: totalThreads,
+            alreadyImported: alreadyImported,
             importedThisRun: 0,
             skippedThisRun: 0,
             failedThisRun: 0,
             currentIndex: 0,
             currentTweetID: nil,
             currentCategory: nil,
-            statusMessage: AppStrings.ViewModel.readyStatus
+            statusMessage: statusMessage
         )
     }
 
@@ -494,6 +492,7 @@ final class ImportViewModel {
         isShowingError = true
         statusMessage = AppStrings.ViewModel.errorStatus
         appendLog(AppStrings.ViewModel.errorLog(message))
+        isRefreshingPreview = false
         isPreparing = false
         isImporting = false
     }
@@ -639,24 +638,6 @@ final class ImportViewModel {
         } catch {
             return (false, AppStrings.ViewModel.ollamaConnectionFailed(error.localizedDescription))
         }
-    }
-
-    private static func normalizedOllamaGenerateURL(from raw: String) -> URL? {
-        guard var components = URLComponents(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return nil
-        }
-        guard components.scheme != nil, components.host != nil else {
-            return nil
-        }
-
-        let path = components.path.trimmingCharacters(in: .whitespacesAndNewlines)
-        if path.isEmpty || path == "/" {
-            components.path = "/api/generate"
-        } else if path == "/api" {
-            components.path = "/api/generate"
-        }
-
-        return components.url
     }
 
     nonisolated private static func extractFileURL(from item: NSSecureCoding?) -> URL? {

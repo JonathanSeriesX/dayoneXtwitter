@@ -1,565 +1,5 @@
 import Foundation
 
-struct ArchiveLocation: Sendable, Equatable {
-    let droppedURL: URL
-    let archiveRootURL: URL
-    let dataDirectoryURL: URL
-    let tweetsJSURL: URL
-    let extractedFromZip: Bool
-
-    var displayName: String {
-        archiveRootURL.lastPathComponent
-    }
-}
-
-struct ArchiveOverview: Sendable {
-    let archivePath: String
-    let statusesFilePath: String
-    let sourcePath: String
-    let sourceWasZip: Bool
-    let archiveUsername: String?
-    let archiveDisplayName: String?
-    let totalTweets: Int
-    let threadsBeforeDateFilter: Int
-    let threadsInDateRange: Int
-    let alreadyImported: Int
-    let pendingToImport: Int
-    let earliestTweetDate: Date?
-    let latestTweetDate: Date?
-}
-
-struct PreparedImportContext: Sendable {
-    let archive: ArchiveLocation
-    let statusesFileURL: URL
-    let totalTweets: Int
-    let filteredThreads: [[Tweet]]
-    let pendingThreads: [[Tweet]]
-    let alreadyProcessedIDs: Set<String>
-    let overview: ArchiveOverview
-}
-
-struct ImportProgressSnapshot: Sendable {
-    let totalThreads: Int
-    let alreadyImported: Int
-    let importedThisRun: Int
-    let skippedThisRun: Int
-    let failedThisRun: Int
-    let currentIndex: Int
-    let currentTweetID: String?
-    let currentCategory: String?
-    let statusMessage: String
-
-    var completedTotal: Int {
-        min(totalThreads, alreadyImported + currentIndex)
-    }
-
-    var fraction: Double {
-        guard totalThreads > 0 else { return 0 }
-        return Double(completedTotal) / Double(totalThreads)
-    }
-}
-
-struct ImportRunSummary: Sendable {
-    let totalThreads: Int
-    let alreadyImported: Int
-    let importedThisRun: Int
-    let skippedThisRun: Int
-    let failedThisRun: Int
-    let attemptedThisRun: Int
-    let wasCancelled: Bool
-    let statusMessage: String
-}
-
-enum ImportEngineError: LocalizedError {
-    case droppedItemIsNotFileSystemURL
-    case unsupportedDropType
-    case zipExtractionFailed(String)
-    case noTwitterArchiveFound(URL)
-    case tweetsFileMissing(URL)
-    case tweetsFileReadFailed(path: String, details: String)
-    case invalidTweetsJSON(path: String, reason: String, preview: String)
-    case cannotDecodeTweets(path: String, details: String, preview: String)
-
-    var errorDescription: String? {
-        switch self {
-        case .droppedItemIsNotFileSystemURL:
-            return "Dropped item is not a valid local file URL."
-        case .unsupportedDropType:
-            return "Drop a folder or a .zip archive."
-        case .zipExtractionFailed(let details):
-            return "Failed to extract zip archive: \(details)"
-        case .noTwitterArchiveFound(let directory):
-            return "Could not find a Twitter archive under \(directory.path)."
-        case .tweetsFileMissing(let archiveRoot):
-            return "Could not find data/tweets.js under \(archiveRoot.path)."
-        case let .tweetsFileReadFailed(path, details):
-            return "Unable to read tweets.js at \(path): \(details)"
-        case let .invalidTweetsJSON(path, reason, preview):
-            return """
-            tweets.js is not in the expected format.
-            Path: \(path)
-            Reason: \(reason)
-            Preview: \(preview)
-            """
-        case let .cannotDecodeTweets(path, details, preview):
-            return """
-            Unable to decode tweets.js JSON payload.
-            Path: \(path)
-            Details: \(details)
-            Preview: \(preview)
-            """
-        }
-    }
-}
-
-struct TweetEnvelope: Decodable, Sendable {
-    var tweet: Tweet
-}
-
-struct AccountEnvelope: Decodable, Sendable {
-    var account: AccountProfile
-}
-
-struct AccountProfile: Decodable, Sendable {
-    var username: String?
-    var accountDisplayName: String?
-
-    enum CodingKeys: String, CodingKey {
-        case username
-        case accountDisplayName
-    }
-}
-
-struct Tweet: Decodable, Sendable {
-    var idStr: String
-    var fullText: String
-    var createdAt: Date
-    var favoriteCount: Int
-    var retweetCount: Int
-    var inReplyToStatusID: String?
-    var inReplyToScreenName: String?
-    var entities: Entities
-    var extendedEntities: ExtendedEntities?
-    var coordinates: Coordinates?
-    var mediaFiles: [String] = []
-
-    enum CodingKeys: String, CodingKey {
-        case idStr = "id_str"
-        case fullText = "full_text"
-        case createdAt = "created_at"
-        case favoriteCount = "favorite_count"
-        case retweetCount = "retweet_count"
-        case inReplyToStatusID = "in_reply_to_status_id_str"
-        case inReplyToScreenName = "in_reply_to_screen_name"
-        case entities
-        case extendedEntities = "extended_entities"
-        case coordinates
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        idStr = try container.decode(String.self, forKey: .idStr)
-        fullText = try container.decode(String.self, forKey: .fullText)
-
-        let createdAtRaw = try container.decode(String.self, forKey: .createdAt)
-        guard let parsedDate = Self.createdAtFormatter.date(from: createdAtRaw) else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .createdAt,
-                in: container,
-                debugDescription: "Unexpected date format: \(createdAtRaw)"
-            )
-        }
-        createdAt = parsedDate
-
-        favoriteCount = Self.decodeInt(container: container, key: .favoriteCount) ?? 0
-        retweetCount = Self.decodeInt(container: container, key: .retweetCount) ?? 0
-        inReplyToStatusID = try container.decodeIfPresent(String.self, forKey: .inReplyToStatusID)
-        inReplyToScreenName = try container.decodeIfPresent(String.self, forKey: .inReplyToScreenName)
-        entities = try container.decodeIfPresent(Entities.self, forKey: .entities) ?? Entities()
-        extendedEntities = try container.decodeIfPresent(ExtendedEntities.self, forKey: .extendedEntities)
-        coordinates = try container.decodeIfPresent(Coordinates.self, forKey: .coordinates)
-    }
-
-    private static func decodeInt(
-        container: KeyedDecodingContainer<CodingKeys>,
-        key: CodingKeys
-    ) -> Int? {
-        if let intValue = try? container.decode(Int.self, forKey: key) {
-            return intValue
-        }
-        if let stringValue = try? container.decode(String.self, forKey: key) {
-            return Int(stringValue)
-        }
-        return nil
-    }
-
-    private static let createdAtFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "EEE MMM dd HH:mm:ss Z yyyy"
-        return formatter
-    }()
-}
-
-struct Entities: Decodable, Sendable {
-    var hashtags: [Hashtag]
-    var urls: [URLEntity]
-    var media: [MediaEntity]
-    var userMentions: [UserMention]
-
-    enum CodingKeys: String, CodingKey {
-        case hashtags
-        case urls
-        case media
-        case userMentions = "user_mentions"
-    }
-
-    init() {
-        hashtags = []
-        urls = []
-        media = []
-        userMentions = []
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        hashtags = try container.decodeIfPresent([Hashtag].self, forKey: .hashtags) ?? []
-        urls = try container.decodeIfPresent([URLEntity].self, forKey: .urls) ?? []
-        media = try container.decodeIfPresent([MediaEntity].self, forKey: .media) ?? []
-        userMentions = try container.decodeIfPresent([UserMention].self, forKey: .userMentions) ?? []
-    }
-}
-
-struct Hashtag: Decodable, Sendable {
-    var text: String
-}
-
-struct URLEntity: Decodable, Sendable {
-    var url: String?
-    var expandedURL: String?
-    var displayURL: String?
-
-    enum CodingKeys: String, CodingKey {
-        case url
-        case expandedURL = "expanded_url"
-        case displayURL = "display_url"
-    }
-}
-
-struct UserMention: Decodable, Sendable {
-    var screenName: String
-    var name: String?
-
-    enum CodingKeys: String, CodingKey {
-        case screenName = "screen_name"
-        case name
-    }
-}
-
-struct ExtendedEntities: Decodable, Sendable {
-    var media: [MediaEntity]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        media = try container.decodeIfPresent([MediaEntity].self, forKey: .media) ?? []
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case media
-    }
-}
-
-struct MediaEntity: Decodable, Sendable {
-    var url: String?
-    var type: String?
-    var mediaURLHTTPS: String?
-    var videoInfo: VideoInfo?
-
-    enum CodingKeys: String, CodingKey {
-        case url
-        case type
-        case mediaURLHTTPS = "media_url_https"
-        case videoInfo = "video_info"
-    }
-}
-
-struct VideoInfo: Decodable, Sendable {
-    var variants: [VideoVariant]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        variants = try container.decodeIfPresent([VideoVariant].self, forKey: .variants) ?? []
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case variants
-    }
-}
-
-struct VideoVariant: Decodable, Sendable {
-    var bitrate: Int?
-    var contentType: String?
-    var url: String?
-
-    enum CodingKeys: String, CodingKey {
-        case bitrate
-        case contentType = "content_type"
-        case url
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let intValue = try? container.decode(Int.self, forKey: .bitrate) {
-            bitrate = intValue
-        } else if let stringValue = try? container.decode(String.self, forKey: .bitrate), let intValue = Int(stringValue) {
-            bitrate = intValue
-        } else {
-            bitrate = nil
-        }
-        contentType = try container.decodeIfPresent(String.self, forKey: .contentType)
-        url = try container.decodeIfPresent(String.self, forKey: .url)
-    }
-}
-
-struct Coordinates: Decodable, Sendable {
-    var coordinates: [Double]
-
-    enum CodingKeys: String, CodingKey {
-        case coordinates
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let values = try container.decode([LossyDouble].self, forKey: .coordinates)
-        coordinates = values.map(\.value)
-    }
-
-    var latitudeLongitude: (latitude: Double, longitude: Double)? {
-        guard coordinates.count >= 2 else {
-            return nil
-        }
-        return (latitude: coordinates[1], longitude: coordinates[0])
-    }
-}
-
-private struct LossyDouble: Decodable, Sendable {
-    let value: Double
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if let double = try? container.decode(Double.self) {
-            value = double
-            return
-        }
-        if let string = try? container.decode(String.self), let double = Double(string) {
-            value = double
-            return
-        }
-        throw DecodingError.typeMismatch(
-            Double.self,
-            DecodingError.Context(
-                codingPath: decoder.codingPath,
-                debugDescription: "Expected a number or numeric string for coordinate."
-            )
-        )
-    }
-}
-
-struct DayOnePayload: Sendable {
-    let text: String
-    let journal: String?
-    let tags: [String]
-    let date: Date?
-    let coordinate: (latitude: Double, longitude: Double)?
-    let attachments: [String]
-}
-
-struct DayOneCommandResult: Sendable {
-    let success: Bool
-    let stdout: String
-    let stderr: String
-    let exitCode: Int32
-}
-
-struct ThreadAggregate: Sendable {
-    let text: String
-    let tags: [String]
-    let mediaFiles: [String]
-    let date: Date
-    let coordinate: (latitude: Double, longitude: Double)?
-}
-
-final class DayOneCLI {
-    private let fileManager = FileManager.default
-
-    func availabilityError() -> String? {
-        resolveExecutablePath() == nil ? "Could not find Day One CLI executable ('dayone')." : nil
-    }
-
-    func installedExecutablePath() -> String? {
-        resolveExecutablePath()
-    }
-
-    func listJournals() -> (journals: [String]?, error: String?) {
-        guard let executablePath = resolveExecutablePath() else {
-            return (nil, "Day One CLI is not installed.")
-        }
-
-        let result = runCommand(executablePath: executablePath, arguments: ["journals"])
-        guard result.success else {
-            let detail = result.stderr.trimmedNilIfEmpty ?? "Day One CLI failed to list journals."
-            return (nil, detail)
-        }
-
-        let lines = result.stdout
-            .split(separator: "\n")
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        return (lines, nil)
-    }
-
-    func addPost(payload: DayOnePayload) -> DayOneCommandResult {
-        guard let executablePath = resolveExecutablePath() else {
-            return DayOneCommandResult(
-                success: false,
-                stdout: "",
-                stderr: "Could not find Day One CLI executable ('dayone').",
-                exitCode: -1
-            )
-        }
-
-        var arguments = ["new", payload.text]
-
-        if let journal = payload.journal?.trimmedNilIfEmpty {
-            arguments += ["--journal", journal]
-        }
-
-        if !payload.tags.isEmpty {
-            arguments.append("--tags")
-            arguments.append(contentsOf: payload.tags)
-        }
-
-        if let date = payload.date {
-            arguments += ["--date", Self.utcOutputFormatter.string(from: date), "-z", "UTC"]
-        }
-
-        if let coordinate = payload.coordinate {
-            arguments += ["--coordinate", String(coordinate.latitude), String(coordinate.longitude)]
-        }
-
-        if !payload.attachments.isEmpty {
-            arguments.append("--attachments")
-            arguments.append(contentsOf: payload.attachments)
-        }
-
-        let initial = runCommand(executablePath: executablePath, arguments: arguments)
-        if initial.success || payload.attachments.isEmpty {
-            return initial
-        }
-
-        if let attachmentIndex = arguments.firstIndex(of: "--attachments") {
-            let retryArguments = Array(arguments[..<attachmentIndex])
-            return runCommand(executablePath: executablePath, arguments: retryArguments)
-        }
-
-        return initial
-    }
-
-    private func runCommand(executablePath: String, arguments: [String]) -> DayOneCommandResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-
-            let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-            let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-
-            return DayOneCommandResult(
-                success: process.terminationStatus == 0,
-                stdout: stdout,
-                stderr: stderr,
-                exitCode: process.terminationStatus
-            )
-        } catch {
-            return DayOneCommandResult(
-                success: false,
-                stdout: "",
-                stderr: error.localizedDescription,
-                exitCode: -1
-            )
-        }
-    }
-
-    private func resolveExecutablePath() -> String? {
-        let candidates = [
-            "/opt/homebrew/bin/dayone",
-            "/usr/local/bin/dayone",
-            "/usr/bin/dayone",
-            "/opt/homebrew/bin/dayone2",
-            "/usr/local/bin/dayone2",
-            "/usr/bin/dayone2"
-        ]
-
-        if let existing = candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }) {
-            return existing
-        }
-
-        if let discovered = which("dayone") {
-            return discovered
-        }
-
-        if let discovered = which("dayone2") {
-            return discovered
-        }
-
-        return nil
-    }
-
-    private func which(_ command: String) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = [command]
-
-        let stdoutPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = Pipe()
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let output, !output.isEmpty else { return nil }
-            return output
-        } catch {
-            return nil
-        }
-    }
-
-    private static let utcOutputFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return formatter
-    }()
-}
-
 struct TwitterImportEngine {
     private let fileManager = FileManager.default
 
@@ -571,6 +11,11 @@ struct TwitterImportEngine {
     private struct LLMSummaryOutcome {
         let summary: String?
         let failureReason: String?
+    }
+
+    private struct QuoteReference {
+        let handle: String
+        let statusID: String
     }
 
     func resolveDrop(url: URL) throws -> ArchiveLocation {
@@ -608,14 +53,17 @@ struct TwitterImportEngine {
             processTweetTextForMarkdownLinks(tweet: &tweets[index], archiveDataDirectory: archive.dataDirectoryURL)
         }
 
+        let archiveUsername = accountProfile?.username?.trimmedNilIfEmpty
+        let ownTweetIDs = Set(tweets.map(\.idStr))
+
         let allThreads = combineThreads(tweets: tweets)
         let range = dateRange(from: settings)
 
-        let filteredThreads = allThreads
+        let dateFilteredThreads = allThreads
             .filter { thread in
-            guard let firstTweet = thread.first else { return false }
-            return firstTweet.createdAt >= range.start && firstTweet.createdAt <= range.end
-        }
+                guard let firstTweet = thread.first else { return false }
+                return firstTweet.createdAt >= range.start && firstTweet.createdAt <= range.end
+            }
             .sorted { lhs, rhs in
                 guard let lhsFirst = lhs.first, let rhsFirst = rhs.first else {
                     return lhs.count < rhs.count
@@ -625,6 +73,18 @@ struct TwitterImportEngine {
                 }
                 return lhsFirst.createdAt < rhsFirst.createdAt
             }
+
+        // Step 3 count should reflect import settings, not just date range.
+        let filteredThreads = dateFilteredThreads.filter { thread in
+            guard !thread.isEmpty else { return false }
+            var mutableThread = thread
+            let category = getThreadCategory(
+                thread: &mutableThread,
+                ownTweetIDs: ownTweetIDs,
+                archiveUsername: archiveUsername
+            )
+            return targetJournal(for: category, settings: settings) != nil
+        }
 
         let alreadyProcessed: Set<String>
         let alreadyImportedCount: Int
@@ -653,7 +113,7 @@ struct TwitterImportEngine {
             statusesFilePath: statusesFileURL.path,
             sourcePath: archive.droppedURL.path,
             sourceWasZip: archive.extractedFromZip,
-            archiveUsername: accountProfile?.username?.trimmedNilIfEmpty,
+            archiveUsername: archiveUsername,
             archiveDisplayName: accountProfile?.accountDisplayName?.trimmedNilIfEmpty,
             totalTweets: tweets.count,
             threadsBeforeDateFilter: allThreads.count,
@@ -671,6 +131,7 @@ struct TwitterImportEngine {
             filteredThreads: filteredThreads,
             pendingThreads: pendingThreads,
             alreadyProcessedIDs: alreadyProcessed,
+            ownTweetIDs: ownTweetIDs,
             overview: overview
         )
     }
@@ -720,48 +181,28 @@ struct TwitterImportEngine {
         var processedIndex = 0
         var llmFallbackReports = 0
 
-        progress(
-            ImportProgressSnapshot(
-                totalThreads: totalThreads,
-                alreadyImported: alreadyImported,
-                importedThisRun: imported,
-                skippedThisRun: skipped,
-                failedThisRun: failed,
-                currentIndex: processedIndex,
-                currentTweetID: nil,
-                currentCategory: nil,
-                statusMessage: "Starting import"
+        func emitStatus(_ message: String, tweetID: String? = nil, category: String? = nil) {
+            progress(
+                ImportProgressSnapshot(
+                    totalThreads: totalThreads,
+                    alreadyImported: alreadyImported,
+                    importedThisRun: imported,
+                    skippedThisRun: skipped,
+                    failedThisRun: failed,
+                    currentIndex: processedIndex,
+                    currentTweetID: tweetID,
+                    currentCategory: category,
+                    statusMessage: message
+                )
             )
-        )
+        }
+
+        emitStatus("Starting import")
 
         if settings.processTitlesWithLLM {
-            progress(
-                ImportProgressSnapshot(
-                    totalThreads: totalThreads,
-                    alreadyImported: alreadyImported,
-                    importedThisRun: imported,
-                    skippedThisRun: skipped,
-                    failedThisRun: failed,
-                    currentIndex: processedIndex,
-                    currentTweetID: nil,
-                    currentCategory: nil,
-                    statusMessage: "LLM naming enabled (\(settings.ollamaModelName))."
-                )
-            )
+            emitStatus("LLM naming enabled (\(settings.ollamaModelName)).")
         } else {
-            progress(
-                ImportProgressSnapshot(
-                    totalThreads: totalThreads,
-                    alreadyImported: alreadyImported,
-                    importedThisRun: imported,
-                    skippedThisRun: skipped,
-                    failedThisRun: failed,
-                    currentIndex: processedIndex,
-                    currentTweetID: nil,
-                    currentCategory: nil,
-                    statusMessage: "LLM naming disabled for this run."
-                )
-            )
+            emitStatus("LLM naming disabled for this run.")
         }
 
         for thread in context.pendingThreads {
@@ -781,6 +222,7 @@ struct TwitterImportEngine {
             guard !thread.isEmpty else {
                 continue
             }
+
             var mutableThread = thread
             let firstTweet = mutableThread[0]
 
@@ -788,13 +230,14 @@ struct TwitterImportEngine {
             processedIndex += 1
 
             let tweetID = firstTweet.idStr
-            let category = getThreadCategory(thread: &mutableThread)
+            let category = getThreadCategory(
+                thread: &mutableThread,
+                ownTweetIDs: context.ownTweetIDs,
+                archiveUsername: context.overview.archiveUsername?.trimmedNilIfEmpty
+            )
             let archiveUsername = context.overview.archiveUsername?.trimmedNilIfEmpty
 
-            let aggregate = aggregateThreadData(
-                thread: mutableThread,
-                archiveUsername: archiveUsername
-            )
+            let aggregate = aggregateThreadData(thread: mutableThread, archiveUsername: archiveUsername)
             let titleOutcome = await generateEntryTitle(
                 entryText: aggregate.text,
                 category: category,
@@ -804,19 +247,7 @@ struct TwitterImportEngine {
 
             if let reason = titleOutcome.failureReason, llmFallbackReports < 12 {
                 llmFallbackReports += 1
-                progress(
-                    ImportProgressSnapshot(
-                        totalThreads: totalThreads,
-                        alreadyImported: alreadyImported,
-                        importedThisRun: imported,
-                        skippedThisRun: skipped,
-                        failedThisRun: failed,
-                        currentIndex: processedIndex,
-                        currentTweetID: tweetID,
-                        currentCategory: category,
-                        statusMessage: "LLM naming fallback for \(tweetID): \(reason)"
-                    )
-                )
+                emitStatus("LLM naming fallback for \(tweetID): \(reason)", tweetID: tweetID, category: category)
             }
 
             let entryText = buildEntryContent(
@@ -831,37 +262,17 @@ struct TwitterImportEngine {
                         try saveProcessedTweetID(tweetID, statusesFileURL: context.statusesFileURL)
                     } catch {
                         failed += 1
-                        progress(
-                            ImportProgressSnapshot(
-                                totalThreads: totalThreads,
-                                alreadyImported: alreadyImported,
-                                importedThisRun: imported,
-                                skippedThisRun: skipped,
-                                failedThisRun: failed,
-                                currentIndex: processedIndex,
-                                currentTweetID: tweetID,
-                                currentCategory: category,
-                                statusMessage: "Failed to persist skipped tweet ID \(tweetID): \(error.localizedDescription)"
-                            )
+                        emitStatus(
+                            "Failed to persist skipped tweet ID \(tweetID): \(error.localizedDescription)",
+                            tweetID: tweetID,
+                            category: category
                         )
                         continue
                     }
                 }
 
                 skipped += 1
-                progress(
-                    ImportProgressSnapshot(
-                        totalThreads: totalThreads,
-                        alreadyImported: alreadyImported,
-                        importedThisRun: imported,
-                        skippedThisRun: skipped,
-                        failedThisRun: failed,
-                        currentIndex: processedIndex,
-                        currentTweetID: tweetID,
-                        currentCategory: category,
-                        statusMessage: "Skipped \(tweetID) (\(category))"
-                    )
-                )
+                emitStatus("Skipped \(tweetID) (\(category))", tweetID: tweetID, category: category)
                 continue
             }
 
@@ -882,18 +293,10 @@ struct TwitterImportEngine {
                         try saveProcessedTweetID(tweetID, statusesFileURL: context.statusesFileURL)
                     } catch {
                         failed += 1
-                        progress(
-                            ImportProgressSnapshot(
-                                totalThreads: totalThreads,
-                                alreadyImported: alreadyImported,
-                                importedThisRun: imported,
-                                skippedThisRun: skipped,
-                                failedThisRun: failed,
-                                currentIndex: processedIndex,
-                                currentTweetID: tweetID,
-                                currentCategory: category,
-                                statusMessage: "Imported \(tweetID), but failed to save status: \(error.localizedDescription)"
-                            )
+                        emitStatus(
+                            "Imported \(tweetID), but failed to save status: \(error.localizedDescription)",
+                            tweetID: tweetID,
+                            category: category
                         )
                         continue
                     }
@@ -901,35 +304,11 @@ struct TwitterImportEngine {
 
                 let rawOutput = commandResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
                 let statusMessage = rawOutput.isEmpty ? "Imported \(tweetID)" : "Imported \(tweetID): \(rawOutput)"
-                progress(
-                    ImportProgressSnapshot(
-                        totalThreads: totalThreads,
-                        alreadyImported: alreadyImported,
-                        importedThisRun: imported,
-                        skippedThisRun: skipped,
-                        failedThisRun: failed,
-                        currentIndex: processedIndex,
-                        currentTweetID: tweetID,
-                        currentCategory: category,
-                        statusMessage: statusMessage
-                    )
-                )
+                emitStatus(statusMessage, tweetID: tweetID, category: category)
             } else {
                 failed += 1
                 let detail = commandResult.stderr.trimmedNilIfEmpty ?? "Day One command failed with exit code \(commandResult.exitCode)."
-                progress(
-                    ImportProgressSnapshot(
-                        totalThreads: totalThreads,
-                        alreadyImported: alreadyImported,
-                        importedThisRun: imported,
-                        skippedThisRun: skipped,
-                        failedThisRun: failed,
-                        currentIndex: processedIndex,
-                        currentTweetID: tweetID,
-                        currentCategory: category,
-                        statusMessage: "Failed \(tweetID): \(detail)"
-                    )
-                )
+                emitStatus("Failed \(tweetID): \(detail)", tweetID: tweetID, category: category)
             }
         }
 
@@ -1160,14 +539,18 @@ struct TwitterImportEngine {
         }
     }
 
-    private func previewText(_ text: String, maxLength: Int = 260) -> String {
+    private func previewText(
+        _ text: String,
+        maxLength: Int = 260,
+        emptyPlaceholder: String = "<empty>"
+    ) -> String {
         let normalized = text
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\n", with: "\\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !normalized.isEmpty else {
-            return "<empty>"
+            return emptyPlaceholder
         }
 
         if normalized.count <= maxLength {
@@ -1227,10 +610,14 @@ struct TwitterImportEngine {
             }
 
             var queue: [Tweet] = [root]
+            var queueIndex = 0
             var currentThread: [Tweet] = []
 
-            while let currentTweet = queue.first {
-                queue.removeFirst()
+            // Use index-based traversal to avoid O(n^2) cost from repeated removeFirst().
+            while queueIndex < queue.count {
+                let currentTweet = queue[queueIndex]
+                queueIndex += 1
+
                 currentThread.append(currentTweet)
                 processedIDs.insert(currentTweet.idStr)
 
@@ -1488,10 +875,11 @@ struct TwitterImportEngine {
             let requestPayload = String(data: requestData, encoding: .utf8) ?? "<non-utf8 json payload>"
             print("[Twixodus][Ollama] FULL OLLAMA URL: \(url.absoluteString)")
             print("[Twixodus][Ollama] FULL OLLAMA REQUEST JSON: \(requestPayload)")
+
             let (responseData, response) = try await URLSession.shared.data(for: request)
             let rawResponse = String(data: responseData, encoding: .utf8) ?? "<non-utf8 response>"
             print("[Twixodus][Ollama] FULL OLLAMA RESPONSE: \(rawResponse)")
-            let preview = previewText(rawResponse, limit: 240)
+            let preview = previewText(rawResponse, maxLength: 240, emptyPlaceholder: "")
 
             if let http = response as? HTTPURLResponse, !(200 ... 299).contains(http.statusCode) {
                 return LLMSummaryOutcome(
@@ -1531,33 +919,6 @@ struct TwitterImportEngine {
                 failureReason: "Request to \(url.absoluteString) failed: \(error.localizedDescription)"
             )
         }
-    }
-
-    private func previewText(_ text: String, limit: Int) -> String {
-        let normalized = text
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard normalized.count > limit else { return normalized }
-        let endIndex = normalized.index(normalized.startIndex, offsetBy: limit)
-        return "\(normalized[..<endIndex])..."
-    }
-
-    private func normalizedOllamaGenerateURL(from raw: String) -> URL? {
-        guard var components = URLComponents(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return nil
-        }
-        guard components.scheme != nil, components.host != nil else {
-            return nil
-        }
-
-        let path = components.path.trimmingCharacters(in: .whitespacesAndNewlines)
-        if path.isEmpty || path == "/" || path == "/api" {
-            components.path = "/api/generate"
-        }
-
-        return components.url
     }
 
     private func buildEntryContent(entryText: String, firstTweet: Tweet, title: String) -> String {
@@ -1615,7 +976,11 @@ struct TwitterImportEngine {
         return settings.journalName.trimmedNilIfEmpty ?? "Tweets"
     }
 
-    private func getThreadCategory(thread: inout [Tweet]) -> String {
+    private func getThreadCategory(
+        thread: inout [Tweet],
+        ownTweetIDs: Set<String>,
+        archiveUsername: String?
+    ) -> String {
         guard !thread.isEmpty else {
             return "Empty thread"
         }
@@ -1644,11 +1009,27 @@ struct TwitterImportEngine {
         }
 
         if hasNonMediaTwitterLink && !isReply {
+            if let quote = extractQuoteReference(firstTweet: firstTweet),
+               isSelfQuote(
+                   quote,
+                   ownTweetIDs: ownTweetIDs,
+                   archiveUsername: archiveUsername
+               ) {
+                return "Quoted myself"
+            }
             let name = extractQuoteHandle(firstTweet: firstTweet) ?? "@unknown"
             return "Quoted \(name)"
         }
 
         if firstTweet.fullText.contains(" RT @") {
+            if let quote = extractQuoteReference(firstTweet: firstTweet),
+               isSelfQuote(
+                   quote,
+                   ownTweetIDs: ownTweetIDs,
+                   archiveUsername: archiveUsername
+               ) {
+                return "Quoted myself"
+            }
             let name = extractQuoteHandle(firstTweet: firstTweet) ?? "@unknown"
             return "Quoted \(name)"
         }
@@ -1756,20 +1137,67 @@ struct TwitterImportEngine {
     }
 
     private func extractQuoteHandle(firstTweet: Tweet) -> String? {
+        extractQuoteReference(firstTweet: firstTweet).map { "@\($0.handle)" }
+    }
+
+    private func extractQuoteReference(firstTweet: Tweet) -> QuoteReference? {
         for urlEntity in firstTweet.entities.urls {
             guard let expanded = urlEntity.expandedURL else { continue }
-            let handles = expanded.captureGroups(forRegex: "https?://(?:www\\.)?(?:twitter\\.com|x\\.com)/([^/]+)/status/\\d+")
-            if let first = handles.first {
-                return "@\(first)"
+            if let reference = quoteReference(from: expanded) {
+                return reference
             }
         }
         return nil
     }
 
+    private func isSelfQuote(
+        _ quote: QuoteReference,
+        ownTweetIDs: Set<String>,
+        archiveUsername: String?
+    ) -> Bool {
+        // Status IDs in the user's archive are canonical and remain stable across handle changes.
+        if ownTweetIDs.contains(quote.statusID) {
+            return true
+        }
+
+        let normalizedHandle = quote.handle.lowercased()
+        if let archiveUsername, archiveUsername.lowercased() == normalizedHandle {
+            return true
+        }
+
+        return false
+    }
+
+    private func quoteReference(from url: String) -> QuoteReference? {
+        let fullRange = NSRange(url.startIndex..<url.endIndex, in: url)
+        guard let match = Self.quoteURLRegex.firstMatch(in: url, range: fullRange),
+              let handleRange = Range(match.range(at: 1), in: url),
+              let statusRange = Range(match.range(at: 2), in: url)
+        else {
+            return nil
+        }
+
+        return QuoteReference(
+            handle: String(url[handleRange]),
+            statusID: String(url[statusRange])
+        )
+    }
+
+    private static let quoteURLRegex: NSRegularExpression = {
+        let pattern = "https?://(?:www\\.)?(?:twitter\\.com|x\\.com)/([^/]+)/status/(\\d+)"
+        return try! NSRegularExpression(pattern: pattern)
+    }()
+
     private func caseInsensitiveNameMap(tweet: Tweet) -> [String: String] {
-        Dictionary(uniqueKeysWithValues: tweet.entities.userMentions.map { mention in
-            (mention.screenName.lowercased(), mention.name ?? "@\(mention.screenName)")
-        })
+        // Archives can repeat the same mention handle multiple times in one tweet.
+        // Build the map defensively instead of trapping on duplicate keys.
+        tweet.entities.userMentions.reduce(into: [:]) { result, mention in
+            let key = mention.screenName.lowercased()
+            let value = mention.name ?? "@\(mention.screenName)"
+            if result[key] == nil {
+                result[key] = value
+            }
+        }
     }
 
     private func joinNaturalLanguage(_ values: [String]) -> String {
@@ -1787,68 +1215,5 @@ struct TwitterImportEngine {
 
     private func numericTweetID(_ id: String) -> Int64 {
         Int64(id) ?? 0
-    }
-}
-
-actor ImportCoordinator {
-    func resolveAndPrepare(dropURL: URL, settings: ImportSettings) throws -> PreparedImportContext {
-        let engine = TwitterImportEngine()
-        let archive = try engine.resolveDrop(url: dropURL)
-        return try engine.prepareImportContext(archive: archive, settings: settings)
-    }
-
-    func refresh(archive: ArchiveLocation, settings: ImportSettings) throws -> PreparedImportContext {
-        let engine = TwitterImportEngine()
-        return try engine.prepareImportContext(archive: archive, settings: settings)
-    }
-
-    func runImport(
-        context: PreparedImportContext,
-        settings: ImportSettings,
-        progress: @escaping @Sendable (ImportProgressSnapshot) -> Void
-    ) async -> ImportRunSummary {
-        let engine = TwitterImportEngine()
-        return await engine.runImport(context: context, settings: settings, progress: progress)
-    }
-}
-
-private extension String {
-    var trimmedNilIfEmpty: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    func replacingRegex(pattern: String, with template: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return self
-        }
-        let range = NSRange(startIndex..<endIndex, in: self)
-        return regex.stringByReplacingMatches(in: self, range: range, withTemplate: template)
-    }
-
-    func matches(forRegex pattern: String) -> [String] {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return []
-        }
-        let range = NSRange(startIndex..<endIndex, in: self)
-        return regex.matches(in: self, range: range).compactMap { match in
-            guard let matchRange = Range(match.range, in: self) else { return nil }
-            return String(self[matchRange])
-        }
-    }
-
-    func captureGroups(forRegex pattern: String) -> [String] {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return []
-        }
-        let range = NSRange(startIndex..<endIndex, in: self)
-        return regex.matches(in: self, range: range).compactMap { match in
-            guard match.numberOfRanges > 1,
-                  let matchRange = Range(match.range(at: 1), in: self)
-            else {
-                return nil
-            }
-            return String(self[matchRange])
-        }
     }
 }
