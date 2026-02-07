@@ -353,24 +353,6 @@ struct ContentView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(AppStrings.DoneStep.donationTitle)
-                    .font(.subheadline.weight(.semibold))
-                Text(AppStrings.DoneStep.donationDetails)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 14) {
-                    if let url = URL(string: AppStrings.DoneStep.buyMeCoffeeURL) {
-                        Link(AppStrings.DoneStep.buyMeCoffeeLabel, destination: url)
-                    }
-
-                    Text("\(AppStrings.DoneStep.usdtLabel) \(AppStrings.DoneStep.usdtAddress)")
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                }
-            }
-
             Text(AppStrings.DoneStep.logTitle)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
