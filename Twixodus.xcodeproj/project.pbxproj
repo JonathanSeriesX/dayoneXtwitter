@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8F0D94479D6B4A6110F30D73 /* AppStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F0D94469D6B4A6110F30D73 /* AppStrings.swift */; };
 		43173904E21C9C224469134D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0168F0DCC6C30B255CCA9A79 /* ContentView.swift */; };
 		891F09DF51EFAA349A5D62D9 /* ImportSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1944D6BD53DC181A80231B3 /* ImportSettings.swift */; };
 		941C9CDB4830BBD5BBE51660 /* TwitterImportEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5BEE39732226AD731A9865E /* TwitterImportEngine.swift */; };
@@ -18,6 +19,7 @@
 		0168F0DCC6C30B255CCA9A79 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4B840E9C35E45861412CD2A0 /* ImportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportViewModel.swift; sourceTree = "<group>"; };
 		7C8EFE452AC6803A3E46F960 /* TwixodusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwixodusApp.swift; sourceTree = "<group>"; };
+		8F0D94469D6B4A6110F30D73 /* AppStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStrings.swift; sourceTree = "<group>"; };
 		A1944D6BD53DC181A80231B3 /* ImportSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSettings.swift; sourceTree = "<group>"; };
 		A5BEE39732226AD731A9865E /* TwitterImportEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitterImportEngine.swift; sourceTree = "<group>"; };
 		DF18971A37DC06D6359AF59A /* Twixodus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Twixodus.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -35,6 +37,7 @@
 		1B036181F26AA4AD150C35EA /* Twixodus */ = {
 			isa = PBXGroup;
 			children = (
+				8F0D94469D6B4A6110F30D73 /* AppStrings.swift */,
 				0168F0DCC6C30B255CCA9A79 /* ContentView.swift */,
 				A1944D6BD53DC181A80231B3 /* ImportSettings.swift */,
 				4B840E9C35E45861412CD2A0 /* ImportViewModel.swift */,
@@ -110,6 +113,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8F0D94479D6B4A6110F30D73 /* AppStrings.swift in Sources */,
 				43173904E21C9C224469134D /* ContentView.swift in Sources */,
 				891F09DF51EFAA349A5D62D9 /* ImportSettings.swift in Sources */,
 				A2C93EA3580DC68E58199747 /* ImportViewModel.swift in Sources */,
