@@ -563,6 +563,16 @@ final class DayOneCLI {
 struct TwitterImportEngine {
     private let fileManager = FileManager.default
 
+    private struct TitleGenerationOutcome {
+        let title: String
+        let failureReason: String?
+    }
+
+    private struct LLMSummaryOutcome {
+        let summary: String?
+        let failureReason: String?
+    }
+
     func resolveDrop(url: URL) throws -> ArchiveLocation {
         guard url.isFileURL else {
             throw ImportEngineError.droppedItemIsNotFileSystemURL
@@ -708,6 +718,7 @@ struct TwitterImportEngine {
         var failed = 0
         var attempted = 0
         var processedIndex = 0
+        var llmFallbackReports = 0
 
         progress(
             ImportProgressSnapshot(
@@ -722,6 +733,36 @@ struct TwitterImportEngine {
                 statusMessage: "Starting import"
             )
         )
+
+        if settings.processTitlesWithLLM {
+            progress(
+                ImportProgressSnapshot(
+                    totalThreads: totalThreads,
+                    alreadyImported: alreadyImported,
+                    importedThisRun: imported,
+                    skippedThisRun: skipped,
+                    failedThisRun: failed,
+                    currentIndex: processedIndex,
+                    currentTweetID: nil,
+                    currentCategory: nil,
+                    statusMessage: "LLM naming enabled (\(settings.ollamaModelName))."
+                )
+            )
+        } else {
+            progress(
+                ImportProgressSnapshot(
+                    totalThreads: totalThreads,
+                    alreadyImported: alreadyImported,
+                    importedThisRun: imported,
+                    skippedThisRun: skipped,
+                    failedThisRun: failed,
+                    currentIndex: processedIndex,
+                    currentTweetID: nil,
+                    currentCategory: nil,
+                    statusMessage: "LLM naming disabled for this run."
+                )
+            )
+        }
 
         for thread in context.pendingThreads {
             if Task.isCancelled {
@@ -754,16 +795,34 @@ struct TwitterImportEngine {
                 thread: mutableThread,
                 archiveUsername: archiveUsername
             )
-            let title = await generateEntryTitle(
+            let titleOutcome = await generateEntryTitle(
                 entryText: aggregate.text,
                 category: category,
                 threadLength: mutableThread.count,
                 settings: settings
             )
+
+            if let reason = titleOutcome.failureReason, llmFallbackReports < 12 {
+                llmFallbackReports += 1
+                progress(
+                    ImportProgressSnapshot(
+                        totalThreads: totalThreads,
+                        alreadyImported: alreadyImported,
+                        importedThisRun: imported,
+                        skippedThisRun: skipped,
+                        failedThisRun: failed,
+                        currentIndex: processedIndex,
+                        currentTweetID: tweetID,
+                        currentCategory: category,
+                        statusMessage: "LLM naming fallback for \(tweetID): \(reason)"
+                    )
+                )
+            }
+
             let entryText = buildEntryContent(
                 entryText: aggregate.text,
                 firstTweet: firstTweet,
-                title: title
+                title: titleOutcome.title
             )
 
             guard let targetJournal = targetJournal(for: category, settings: settings) else {
@@ -1373,26 +1432,36 @@ struct TwitterImportEngine {
         category: String,
         threadLength: Int,
         settings: ImportSettings
-    ) async -> String {
+    ) async -> TitleGenerationOutcome {
         if category.hasPrefix("Replied to") {
-            return category
+            return TitleGenerationOutcome(title: category, failureReason: nil)
         }
 
         guard settings.processTitlesWithLLM, threadLength > 1 else {
-            return category
+            return TitleGenerationOutcome(title: category, failureReason: nil)
         }
 
-        let summary = await requestLLMSummary(text: entryText, settings: settings)
-        if summary == "Uncategorized" {
-            return category
+        let summaryOutcome = await requestLLMSummary(text: entryText, settings: settings)
+        guard let summary = summaryOutcome.summary else {
+            return TitleGenerationOutcome(
+                title: category,
+                failureReason: summaryOutcome.failureReason
+            )
         }
 
-        return "Wrote \(summary)"
+        return TitleGenerationOutcome(
+            title: "Wrote \(summary)",
+            failureReason: nil
+        )
     }
 
-    private func requestLLMSummary(text: String, settings: ImportSettings) async -> String {
-        guard let url = URL(string: settings.ollamaAPIURL) else {
-            return "Uncategorized"
+    private func requestLLMSummary(text: String, settings: ImportSettings) async -> LLMSummaryOutcome {
+        guard let url = normalizedOllamaGenerateURL(from: settings.ollamaAPIURL) else {
+            print("[Twixodus][Ollama] Invalid URL: \(settings.ollamaAPIURL)")
+            return LLMSummaryOutcome(
+                summary: nil,
+                failureReason: "Invalid Ollama URL: \(settings.ollamaAPIURL)"
+            )
         }
 
         var request = URLRequest(url: url)
@@ -1405,27 +1474,90 @@ struct TwitterImportEngine {
             "model": settings.ollamaModelName,
             "prompt": prompt,
             "stream": false,
+            "think": false,
             "options": [
-                "num_predict": 10,
-                "temperature": 0.3,
-                "num_ctx": 2048
+                "num_predict": 48,
+                "temperature": 0.2,
+                "num_ctx": 8192
             ]
         ]
 
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+            let requestData = try JSONSerialization.data(withJSONObject: payload)
+            request.httpBody = requestData
+            let requestPayload = String(data: requestData, encoding: .utf8) ?? "<non-utf8 json payload>"
+            print("[Twixodus][Ollama] FULL OLLAMA URL: \(url.absoluteString)")
+            print("[Twixodus][Ollama] FULL OLLAMA REQUEST JSON: \(requestPayload)")
             let (responseData, response) = try await URLSession.shared.data(for: request)
+            let rawResponse = String(data: responseData, encoding: .utf8) ?? "<non-utf8 response>"
+            print("[Twixodus][Ollama] FULL OLLAMA RESPONSE: \(rawResponse)")
+            let preview = previewText(rawResponse, limit: 240)
 
             if let http = response as? HTTPURLResponse, !(200 ... 299).contains(http.statusCode) {
-                return "Uncategorized"
+                return LLMSummaryOutcome(
+                    summary: nil,
+                    failureReason: "HTTP \(http.statusCode) from \(url.absoluteString). Response: \(preview)"
+                )
             }
 
-            let parsed = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
-            let summary = (parsed?["response"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return (summary?.isEmpty == false) ? summary! : "Uncategorized"
+            guard let parsed = try JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
+                return LLMSummaryOutcome(
+                    summary: nil,
+                    failureReason: "Unexpected non-JSON response from \(url.absoluteString): \(preview)"
+                )
+            }
+
+            if let summary = (parsed["response"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !summary.isEmpty {
+                return LLMSummaryOutcome(summary: summary, failureReason: nil)
+            }
+
+            if let message = parsed["message"] as? [String: Any],
+               let content = (message["content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !content.isEmpty {
+                return LLMSummaryOutcome(summary: content, failureReason: nil)
+            }
+
+            let doneReason = (parsed["done_reason"] as? String) ?? "n/a"
+            let model = (parsed["model"] as? String) ?? settings.ollamaModelName
+            return LLMSummaryOutcome(
+                summary: nil,
+                failureReason: "Empty summary from \(url.absoluteString) (model \(model), done_reason \(doneReason)). Raw: \(preview)"
+            )
         } catch {
-            return "Uncategorized"
+            print("[Twixodus][Ollama] REQUEST FAILED for \(url.absoluteString): \(error.localizedDescription)")
+            return LLMSummaryOutcome(
+                summary: nil,
+                failureReason: "Request to \(url.absoluteString) failed: \(error.localizedDescription)"
+            )
         }
+    }
+
+    private func previewText(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard normalized.count > limit else { return normalized }
+        let endIndex = normalized.index(normalized.startIndex, offsetBy: limit)
+        return "\(normalized[..<endIndex])..."
+    }
+
+    private func normalizedOllamaGenerateURL(from raw: String) -> URL? {
+        guard var components = URLComponents(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return nil
+        }
+        guard components.scheme != nil, components.host != nil else {
+            return nil
+        }
+
+        let path = components.path.trimmingCharacters(in: .whitespacesAndNewlines)
+        if path.isEmpty || path == "/" || path == "/api" {
+            components.path = "/api/generate"
+        }
+
+        return components.url
     }
 
     private func buildEntryContent(entryText: String, firstTweet: Tweet, title: String) -> String {
