@@ -4,8 +4,8 @@ struct ImportSettings: Codable, Equatable, Sendable {
     var journalName: String = "Tweets"
     var includeReplies: Bool = true
     var replyJournalName: String = "Twitter Replies"
-    var currentUsername: String = "JonathanSeriesX"
     var ignoreRetweets: Bool = false
+    var skipAlreadyImported: Bool = false
     var startDate: Date = ImportSettings.defaultStartDate
     var endDate: Date = ImportSettings.defaultEndDate
     var processTitlesWithLLM: Bool = true
@@ -38,10 +38,6 @@ struct ImportSettings: Codable, Equatable, Sendable {
             return
         }
         UserDefaults.standard.set(data, forKey: Self.defaultsKey)
-    }
-
-    var normalizedCurrentUsername: String? {
-        currentUsername.trimmedNilIfEmpty
     }
 
     var normalizedReplyJournalName: String? {
