@@ -50,6 +50,8 @@ enum AppStrings {
         static let optionalBadge = "Optional"
         static let checkingButton = "Checking..."
         static let recheckButton = "Re-check"
+        static let appStoreButton = "Open App Store"
+        static let cliGuideButton = "Open CLI Guide"
     }
 
     enum SettingsStep {
@@ -103,6 +105,8 @@ enum AppStrings {
         static let checkingOllama = "Checking model response via configured URL and model name."
         static let installDayOneHint = "Install Day One from the Mac App Store."
         static let installDayOneCLIHints = "Follow Day One CLI guide and ensure 'dayone' is in PATH."
+        static let dayOneAppStoreURL = "https://apps.apple.com/tr/app/day-one/id1055511498?mt=12"
+        static let dayOneCLIGuideURL = "https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/"
     }
 
     enum ViewModel {

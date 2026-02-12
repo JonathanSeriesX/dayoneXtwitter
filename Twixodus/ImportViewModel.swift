@@ -117,6 +117,8 @@ final class ImportViewModel {
     private var checksTask: Task<Void, Never>?
     private var archivePrepareSequence = 0
     private var previewRefreshSequence = 0
+    private var cachedDayOneAppCheck: PrerequisiteCheck?
+    private var cachedDayOneCLICheck: PrerequisiteCheck?
 
     init() {
         self.settings = ImportSettings()
@@ -214,6 +216,8 @@ final class ImportViewModel {
         preparedContext = nil
         activeArchive = nil
         overview = nil
+        cachedDayOneAppCheck = nil
+        cachedDayOneCLICheck = nil
 
         isPreparing = true
         isRefreshingPreview = false
@@ -285,18 +289,38 @@ final class ImportViewModel {
         }
     }
 
-    func runPrerequisiteChecks() {
+    func runPrerequisiteChecks(refreshDayOneApp: Bool = false, refreshDayOneCLI: Bool = false) {
         checksTask?.cancel()
         isCheckingPrerequisites = true
-        preflightChecks = Self.placeholderChecks()
+        let requiredForDisplay = requiredChecks(refreshDayOneApp: false, refreshDayOneCLI: false).map { check in
+            if (check.id == AppStrings.Prerequisites.dayOneAppID && refreshDayOneApp)
+                || (check.id == AppStrings.Prerequisites.dayOneCLIID && refreshDayOneCLI) {
+                return Self.checkingVariant(for: check)
+            }
+            return check
+        }
+        preflightChecks = requiredForDisplay + [Self.ollamaPlaceholderCheck()]
         let settingsSnapshot = settings
 
         checksTask = Task {
-            let checks = await Self.evaluatePrerequisites(settings: settingsSnapshot)
+            let requiredChecks = self.requiredChecks(refreshDayOneApp: refreshDayOneApp, refreshDayOneCLI: refreshDayOneCLI)
+            let ollamaCheck = await Self.evaluateOllamaPrerequisite(settings: settingsSnapshot)
             guard !Task.isCancelled else { return }
-            self.preflightChecks = checks
+            self.preflightChecks = requiredChecks + [ollamaCheck]
             self.isCheckingPrerequisites = false
         }
+    }
+
+    func recheckDayOneApp() {
+        runPrerequisiteChecks(refreshDayOneApp: true)
+    }
+
+    func recheckDayOneCLI() {
+        runPrerequisiteChecks(refreshDayOneCLI: true)
+    }
+
+    func recheckOllama() {
+        runPrerequisiteChecks()
     }
 
     func goToPrerequisitesStep() {
@@ -311,33 +335,15 @@ final class ImportViewModel {
             setError(AppStrings.ViewModel.requiredPrereqError)
             return
         }
-
-        checksTask?.cancel()
-        isCheckingPrerequisites = true
-        let settingsSnapshot = settings
-
-        checksTask = Task {
-            let checks = await Self.evaluatePrerequisites(settings: settingsSnapshot)
-            guard !Task.isCancelled else { return }
-
-            self.preflightChecks = checks
-            self.isCheckingPrerequisites = false
-
-            let requiredPassed = checks.filter(\.isRequired).allSatisfy { $0.state == .passed }
-            guard requiredPassed else {
-                self.setError(AppStrings.ViewModel.requiredPrereqError)
-                return
-            }
-
-            let ollamaReady = Self.ollamaTitlesEnabled(from: checks)
-            self.settings.processTitlesWithLLM = ollamaReady
-            self.currentStep = .settings
-            self.appendLog(
-                ollamaReady
-                    ? AppStrings.ViewModel.llmEnabledLog
-                    : AppStrings.ViewModel.llmDisabledLog
-            )
-        }
+        // Step 2 already has the latest displayed prerequisite state; do not re-check on Continue.
+        let ollamaReady = Self.ollamaTitlesEnabled(from: preflightChecks)
+        settings.processTitlesWithLLM = ollamaReady
+        currentStep = .settings
+        appendLog(
+            ollamaReady
+                ? AppStrings.ViewModel.llmEnabledLog
+                : AppStrings.ViewModel.llmDisabledLog
+        )
     }
 
     func goBackFromSettings() {
@@ -360,6 +366,8 @@ final class ImportViewModel {
         lastRunSummary = nil
         settings = ImportSettings()
         preflightChecks = Self.placeholderChecks()
+        cachedDayOneAppCheck = nil
+        cachedDayOneCLICheck = nil
         progress = Self.emptyProgressSnapshot(statusMessage: AppStrings.ViewModel.initialStatus)
         isRefreshingPreview = false
         statusMessage = AppStrings.ViewModel.resetFlowStatus
@@ -506,77 +514,110 @@ final class ImportViewModel {
     }
 
     private static func placeholderChecks() -> [PrerequisiteCheck] {
-        [
-            PrerequisiteCheck(
-                id: AppStrings.Prerequisites.dayOneAppID,
-                title: AppStrings.Prerequisites.dayOneAppTitle,
-                details: AppStrings.Prerequisites.checkingApplications,
-                isRequired: true,
-                state: .checking
-            ),
-            PrerequisiteCheck(
-                id: AppStrings.Prerequisites.dayOneCLIID,
-                title: AppStrings.Prerequisites.dayOneCLITitle,
-                details: AppStrings.Prerequisites.checkingCLI,
-                isRequired: true,
-                state: .checking
-            ),
-            PrerequisiteCheck(
-                id: AppStrings.Prerequisites.ollamaID,
-                title: AppStrings.Prerequisites.ollamaTitle,
-                details: AppStrings.Prerequisites.checkingOllama,
-                isRequired: false,
-                state: .checking
-            )
-        ]
+        [dayOneAppPlaceholderCheck(), dayOneCLIPlaceholderCheck(), ollamaPlaceholderCheck()]
     }
 
-    private static func evaluatePrerequisites(settings: ImportSettings) async -> [PrerequisiteCheck] {
-        var checks: [PrerequisiteCheck] = []
+    private func requiredChecks(refreshDayOneApp: Bool, refreshDayOneCLI: Bool) -> [PrerequisiteCheck] {
+        // Cache Day One checks so Ollama-only retries do not keep probing local app/CLI state.
+        let dayOneAppCheck: PrerequisiteCheck
+        if !refreshDayOneApp, let cachedDayOneAppCheck {
+            dayOneAppCheck = cachedDayOneAppCheck
+        } else {
+            dayOneAppCheck = Self.evaluateDayOneAppPrerequisite()
+            cachedDayOneAppCheck = dayOneAppCheck
+        }
 
+        let dayOneCLICheck: PrerequisiteCheck
+        if !refreshDayOneCLI, let cachedDayOneCLICheck {
+            dayOneCLICheck = cachedDayOneCLICheck
+        } else {
+            dayOneCLICheck = Self.evaluateDayOneCLIPrerequisite()
+            cachedDayOneCLICheck = dayOneCLICheck
+        }
+
+        return [dayOneAppCheck, dayOneCLICheck]
+    }
+
+    private static func dayOneAppPlaceholderCheck() -> PrerequisiteCheck {
+        PrerequisiteCheck(
+            id: AppStrings.Prerequisites.dayOneAppID,
+            title: AppStrings.Prerequisites.dayOneAppTitle,
+            details: AppStrings.Prerequisites.checkingApplications,
+            isRequired: true,
+            state: .checking
+        )
+    }
+
+    private static func dayOneCLIPlaceholderCheck() -> PrerequisiteCheck {
+        PrerequisiteCheck(
+            id: AppStrings.Prerequisites.dayOneCLIID,
+            title: AppStrings.Prerequisites.dayOneCLITitle,
+            details: AppStrings.Prerequisites.checkingCLI,
+            isRequired: true,
+            state: .checking
+        )
+    }
+
+    private static func ollamaPlaceholderCheck() -> PrerequisiteCheck {
+        PrerequisiteCheck(
+            id: AppStrings.Prerequisites.ollamaID,
+            title: AppStrings.Prerequisites.ollamaTitle,
+            details: AppStrings.Prerequisites.checkingOllama,
+            isRequired: false,
+            state: .checking
+        )
+    }
+
+    private static func checkingVariant(for check: PrerequisiteCheck) -> PrerequisiteCheck {
+        PrerequisiteCheck(
+            id: check.id,
+            title: check.title,
+            details: check.details,
+            isRequired: check.isRequired,
+            state: .checking
+        )
+    }
+
+    private static func evaluateDayOneAppPrerequisite() -> PrerequisiteCheck {
         let dayOnePaths = [
             AppStrings.ViewModel.dayOneAppPathPrimary,
             "\(NSHomeDirectory())\(AppStrings.ViewModel.dayOneAppPathUserSuffix)"
         ]
 
         let dayOnePath = dayOnePaths.first(where: { FileManager.default.fileExists(atPath: $0) })
-        checks.append(
-            PrerequisiteCheck(
-                id: AppStrings.Prerequisites.dayOneAppID,
-                title: AppStrings.Prerequisites.dayOneAppTitle,
-                details: dayOnePath ?? AppStrings.Prerequisites.installDayOneHint,
-                isRequired: true,
-                state: dayOnePath == nil ? .failed : .passed
-            )
+        return PrerequisiteCheck(
+            id: AppStrings.Prerequisites.dayOneAppID,
+            title: AppStrings.Prerequisites.dayOneAppTitle,
+            details: dayOnePath ?? AppStrings.Prerequisites.installDayOneHint,
+            isRequired: true,
+            state: dayOnePath == nil ? .failed : .passed
         )
+    }
 
+    private static func evaluateDayOneCLIPrerequisite() -> PrerequisiteCheck {
         let dayOneCLI = DayOneCLI()
         let dayOneExecutable = dayOneCLI.installedExecutablePath()
-        checks.append(
-            PrerequisiteCheck(
-                id: AppStrings.Prerequisites.dayOneCLIID,
-                title: AppStrings.Prerequisites.dayOneCLITitle,
-                details: dayOneExecutable ?? AppStrings.Prerequisites.installDayOneCLIHints,
-                isRequired: true,
-                state: dayOneExecutable == nil ? .failed : .passed
-            )
+        return PrerequisiteCheck(
+            id: AppStrings.Prerequisites.dayOneCLIID,
+            title: AppStrings.Prerequisites.dayOneCLITitle,
+            details: dayOneExecutable ?? AppStrings.Prerequisites.installDayOneCLIHints,
+            isRequired: true,
+            state: dayOneExecutable == nil ? .failed : .passed
         )
+    }
 
+    private static func evaluateOllamaPrerequisite(settings: ImportSettings) async -> PrerequisiteCheck {
         let ollamaProbe = await validateOllamaHelloResponse(
             apiURL: settings.ollamaAPIURL,
             modelName: settings.ollamaModelName
         )
-        checks.append(
-            PrerequisiteCheck(
-                id: AppStrings.Prerequisites.ollamaID,
-                title: AppStrings.Prerequisites.ollamaRunningTitle,
-                details: ollamaProbe.details,
-                isRequired: false,
-                state: ollamaProbe.passed ? .passed : .warning
-            )
+        return PrerequisiteCheck(
+            id: AppStrings.Prerequisites.ollamaID,
+            title: AppStrings.Prerequisites.ollamaRunningTitle,
+            details: ollamaProbe.details,
+            isRequired: false,
+            state: ollamaProbe.passed ? .passed : .warning
         )
-
-        return checks
     }
 
     private static func ollamaTitlesEnabled(from checks: [PrerequisiteCheck]) -> Bool {
