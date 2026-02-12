@@ -428,15 +428,7 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if check.id == AppStrings.Prerequisites.ollamaID && check.state != .passed {
-                    Button(viewModel.isCheckingPrerequisites ? AppStrings.PrerequisitesStep.checkingButton : AppStrings.PrerequisitesStep.recheckButton) {
-                        viewModel.runPrerequisiteChecks()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(viewModel.isCheckingPrerequisites)
-                    .padding(.top, 2)
-                }
+                prerequisiteActions(check)
             }
 
             Spacer()
@@ -446,6 +438,47 @@ struct ContentView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
+    }
+
+    @ViewBuilder
+    private func prerequisiteActions(_ check: PrerequisiteCheck) -> some View {
+        if check.id == AppStrings.Prerequisites.dayOneAppID, check.state == .failed {
+            HStack(spacing: 8) {
+                Link(AppStrings.PrerequisitesStep.appStoreButton, destination: URL(string: AppStrings.Prerequisites.dayOneAppStoreURL)!)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                Button(viewModel.isCheckingPrerequisites ? AppStrings.PrerequisitesStep.checkingButton : AppStrings.PrerequisitesStep.recheckButton) {
+                    viewModel.recheckDayOneApp()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(viewModel.isCheckingPrerequisites)
+            }
+            .padding(.top, 2)
+        } else if check.id == AppStrings.Prerequisites.dayOneCLIID, check.state == .failed {
+            HStack(spacing: 8) {
+                Link(AppStrings.PrerequisitesStep.cliGuideButton, destination: URL(string: AppStrings.Prerequisites.dayOneCLIGuideURL)!)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                Button(viewModel.isCheckingPrerequisites ? AppStrings.PrerequisitesStep.checkingButton : AppStrings.PrerequisitesStep.recheckButton) {
+                    viewModel.recheckDayOneCLI()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(viewModel.isCheckingPrerequisites)
+            }
+            .padding(.top, 2)
+        } else if check.id == AppStrings.Prerequisites.ollamaID {
+            Button(viewModel.isCheckingPrerequisites ? AppStrings.PrerequisitesStep.checkingButton : AppStrings.PrerequisitesStep.recheckButton) {
+                viewModel.recheckOllama()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(viewModel.isCheckingPrerequisites)
+            .padding(.top, 2)
+        }
     }
 
     private func prereqColor(_ state: PrerequisiteState) -> Color {
