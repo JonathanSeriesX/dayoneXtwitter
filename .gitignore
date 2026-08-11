@@ -1,6 +1,7 @@
 # Local environment variables
 .env
 .venv
+venv/
 
 # Dev-related
 .idea
@@ -12,5 +13,6 @@ __pycache__
 # Data-related
 twitter*
 processed_tweets.txt
+threads_to_delete.txt
 tweets_to_debug
 .DS_Store

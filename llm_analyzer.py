@@ -1,8 +1,64 @@
-import json
+import ollama
 
-import requests
+import config
 
-from config import OLLAMA_API_URL, OLLAMA_MODEL_NAME, OLLAMA_PROMPT
+# The client keeps a connection pool around, so it's built once and reused for
+# every tweet instead of opening a fresh connection per summary.
+_client = None
+
+# Thinking models spend the whole token budget on the thought and return an empty
+# answer, so thinking is switched off. Models that don't know the flag reject it
+# outright; the first rejection flips this off and the summary is retried.
+_disable_thinking = True
+
+
+def _resolve_host() -> str:
+    """
+    Returns the base URL of the Ollama server.
+
+    Configs written for the old requests-based code point at the /api/generate
+    endpoint, which the client would append its own path to, so that suffix is
+    trimmed off.
+    """
+    host = getattr(config, "OLLAMA_HOST", None) or getattr(config, "OLLAMA_API_URL", "")
+    return host.split("/api/")[0]
+
+
+def _get_client() -> ollama.Client:
+    global _client
+    if _client is None:
+        _client = ollama.Client(
+            host=_resolve_host() or None,  # None lets ollama use its own default host
+            timeout=getattr(config, "OLLAMA_TIMEOUT", 60),
+        )
+    return _client
+
+
+def _generate(prompt: str) -> str:
+    """Runs one completion, retrying without the thinking flag if the model
+    doesn't support it."""
+    global _disable_thinking
+
+    options = {
+        "num_predict": 10,  # Limit output to a few tokens for a single word
+        "temperature": 0.3,  # Keep it low for more deterministic output
+        "num_ctx": 2048,  # To reduce RAM usage
+    }
+
+    try:
+        response = _get_client().generate(
+            model=config.OLLAMA_MODEL_NAME,
+            prompt=prompt,
+            options=options,
+            **({"think": False} if _disable_thinking else {}),
+        )
+    except ollama.ResponseError as e:
+        if _disable_thinking and "does not support thinking" in str(e).lower():
+            _disable_thinking = False
+            return _generate(prompt)
+        raise
+
+    return response.response.strip()
 
 
 def get_tweet_summary(tweet_text: str) -> str:
@@ -16,46 +72,28 @@ def get_tweet_summary(tweet_text: str) -> str:
         str: A one-word summary of the tweet, or "Uncategorized" if summarization fails.
     """
 
-    ollama_url = OLLAMA_API_URL
-    model_name = OLLAMA_MODEL_NAME
-
-    prompt = f"{OLLAMA_PROMPT}\n\nTweet: {tweet_text}\nSummary:"
-
-    headers = {"Content-Type": "application/json"}
-    data = {
-        "model": model_name,
-        "prompt": prompt,
-        "stream": False,  # We want the full response at once
-        "options": {
-            "num_predict": 10,  # Limit output to a few tokens for a single word
-            "temperature": 0.3,  # Keep it low for more deterministic output
-            "num_ctx": 2048,  # To reduce RAM usage
-        },
-    }
+    prompt = f"{config.OLLAMA_PROMPT}\n\nTweet: {tweet_text}\nSummary:"
 
     try:
-        response = requests.post(
-            ollama_url, headers=headers, data=json.dumps(data), timeout=30
-        )
-        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
-
-        result = response.json()
-        summary = result.get("response", "").strip()
-
+        summary = _generate(prompt)
         if summary:
             return summary  # .capitalize() # Capitalize for better titles
+        print("Warning: Ollama returned an empty summary.")
 
-    except requests.exceptions.ConnectionError:
+    except ConnectionError:
+        # Raised by the ollama client when the server can't be reached at all.
         print(
-            f"Warning: Could not connect to Ollama at {ollama_url}. Is the Ollama server running?"
+            f"Warning: Could not connect to Ollama at {_resolve_host()}. Is the Ollama server running?"
         )
-    except requests.exceptions.Timeout:
-        print("Warning: Ollama request timed out.")
-    except requests.exceptions.RequestException as e:
-        print(f"Warning: An error occurred during Ollama request: {e}")
-    except json.JSONDecodeError:
-        print("Warning: Failed to decode JSON response from Ollama.")
+    except ollama.ResponseError as e:
+        print(
+            f"Warning: Ollama refused the request: {e}. "
+            f"Is the '{config.OLLAMA_MODEL_NAME}' model pulled?"
+        )
+    except ollama.RequestError as e:
+        print(f"Warning: Malformed Ollama request: {e}")
     except Exception as e:
+        # Covers read timeouts and anything else httpx may raise mid-request.
         print(f"An unexpected error occurred during LLM summarization: {e}")
 
     return "Uncategorized"  # Fallback summary

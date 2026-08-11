@@ -4,7 +4,12 @@ import os
 from collections import defaultdict, deque
 from datetime import datetime
 
-import processing_utils
+import config
+
+# IDs of every tweet in the loaded archive, i.e. the user's own tweets.
+# Populated by load_tweets(). Quoting one of these is quoting yourself, no
+# matter which username the account had at the time.
+OWN_TWEET_IDS = set()
 
 
 def _build_case_insensitive_name_map(tweet):
@@ -95,22 +100,42 @@ def extract_retweet_inplace(first_tweet):
     return name_map.get(handle.lower()) or f"@{handle}"
 
 
-def extract_quote_handle(first_tweet):
+def extract_quote_target(first_tweet):
     """
-    If the tweet is a quote-tweet, finds the quoted status URL in entities.urls,
-    extracts the username, and returns it as @username.
-    Returns None if no quote URL is found.
+    If the tweet is a quote-tweet, finds the quoted status URL in entities.urls
+    and returns a (handle, status_id) tuple, e.g. ("@somebody", "12345").
+    Returns (None, None) if no quote URL is found.
     """
-    # This function did not need refactoring as it doesn't look up names.
     tweet = first_tweet.get("tweet", first_tweet)
     for url_obj in tweet.get("entities", {}).get("urls", []):
         expanded = url_obj.get("expanded_url", "")
         m = re.match(
-            r"https?://(?:www\.)?(?:twitter\.com|x\.com)/([^/]+)/status/\d+", expanded
+            r"https?://(?:www\.)?(?:twitter\.com|x\.com)/([^/]+)/status/(\d+)", expanded
         )
         if m:
-            return f"@{m.group(1)}"
-    return None
+            return f"@{m.group(1)}", m.group(2)
+    return None, None
+
+
+def _describe_quote_target(first_tweet):
+    """
+    Names whoever the tweet quotes: "myself" for one's own tweets, otherwise
+    the @handle from the quoted status URL.
+
+    A quote is "myself" if the quoted tweet ID is in the loaded archive — which
+    also covers tweets quoted under an old, since-changed username — or if the
+    handle matches CURRENT_USERNAME (covers own tweets deleted from the archive).
+    """
+    handle, status_id = extract_quote_target(first_tweet)
+    if status_id and status_id in OWN_TWEET_IDS:
+        return "myself"
+    if (
+        handle
+        and config.CURRENT_USERNAME
+        and handle.lower() == f"@{config.CURRENT_USERNAME}".lower()
+    ):
+        return "myself"
+    return handle
 
 
 def _get_reply_category(first_tweet):
@@ -230,11 +255,11 @@ def get_thread_category(thread):
     # A single tweet with a non-media Twitter/X link and not a reply is a 'My quote tweet'.
     # This handles cases where 'quoted_status_id_str' might be missing but a quote link exists.
     if has_non_media_twitter_link and not is_reply:
-        name = extract_quote_handle(first_tweet)
+        name = _describe_quote_target(first_tweet)
         return f"Quoted {name}"
 
     if " RT @" in first_tweet["full_text"]:
-        name = extract_quote_handle(first_tweet)
+        name = _describe_quote_target(first_tweet)
         return f"Quoted {name}"
 
     # If it's a reply, determine the specific reply category using the helper function.
@@ -252,9 +277,9 @@ def get_thread_category(thread):
     return "Tweeted"
 
 
-def load_tweets(tweet_archive_path):
+def _load_tweets_from_file(tweet_archive_path):
     """
-    Loads tweets from the Twitter archive JSON file.
+    Loads tweets from one Twitter archive JSON file.
 
     The Twitter archive JSON file often contains a JavaScript variable declaration
     before the actual JSON array. This function extracts the JSON array.
@@ -293,6 +318,83 @@ def load_tweets(tweet_archive_path):
         ).replace(tzinfo=None)
 
     return tweets
+
+
+def load_tweets(tweet_archive_paths):
+    """
+    Loads and combines tweets from one or more Twitter archive JSON files.
+
+    Twitter splits large archives into tweets.js, tweets-part1.js, … — a thread
+    can have its root in one part and its replies in another, so all parts have
+    to be combined before threads are assembled.
+
+    Also remembers the IDs of the user's own tweets (see OWN_TWEET_IDS), used to
+    recognize quotes of one's own tweets regardless of the username at the time.
+
+    Args:
+        tweet_archive_paths: A path, or a list of paths, to the archive JSON file(s).
+
+    Returns:
+        list: A single list of tweet dictionaries from all files.
+    """
+    if isinstance(tweet_archive_paths, (str, os.PathLike)):
+        tweet_archive_paths = [tweet_archive_paths]
+
+    tweets = []
+    for path in tweet_archive_paths:
+        tweets.extend(_load_tweets_from_file(path))
+
+    OWN_TWEET_IDS.clear()
+    OWN_TWEET_IDS.update(t["tweet"]["id_str"] for t in tweets)
+
+    return tweets
+
+
+def adopt_orphan_self_replies(tweets, own_account_id=None):
+    """
+    Turns replies-to-self whose parent tweet is missing from the archive into
+    plain tweets, by stripping their reply markers in place.
+
+    Normally a reply to one's own tweet is threaded under its parent. But if
+    that parent was deleted before the archive was generated, the reply would
+    be published as "Replied to <myself>" with a dead conversation link.
+    Publishing the leftovers as an ordinary tweet (or thread root) is better.
+
+    Detection uses in_reply_to_user_id_str against the archive's account ID,
+    which is stable across username changes; if no account ID is available,
+    falls back to comparing in_reply_to_screen_name with CURRENT_USERNAME.
+
+    Returns the number of tweets adopted.
+    """
+    archive_ids = {t["tweet"]["id_str"] for t in tweets}
+    adopted = 0
+
+    for tweet in tweets:
+        tweet_data = tweet["tweet"]
+        parent_id = tweet_data.get("in_reply_to_status_id_str")
+        if not parent_id or parent_id in archive_ids:
+            continue
+
+        if own_account_id:
+            is_self_reply = tweet_data.get("in_reply_to_user_id_str") == own_account_id
+        else:
+            reply_screen_name = tweet_data.get("in_reply_to_screen_name", "")
+            is_self_reply = bool(config.CURRENT_USERNAME) and (
+                reply_screen_name.lower() == config.CURRENT_USERNAME.lower()
+            )
+
+        if is_self_reply:
+            for key in (
+                "in_reply_to_status_id_str",
+                "in_reply_to_status_id",
+                "in_reply_to_user_id_str",
+                "in_reply_to_user_id",
+                "in_reply_to_screen_name",
+            ):
+                tweet_data.pop(key, None)
+            adopted += 1
+
+    return adopted
 
 
 def _count_media(tweet):
@@ -465,6 +567,10 @@ def _replace_links_in_text(text, links, media_map):
 
 
 def _replace_media_in_text(text, media_map, tweet_id):
+    # Imported here rather than at module level: processing_utils imports this
+    # module's parsing functions, so a top-level import would be circular.
+    import processing_utils
+
     processed_text = text
     media_files = []
     sorted_media_tco_urls = sorted(media_map.keys(), key=len, reverse=True)
