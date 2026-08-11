@@ -1,8 +1,55 @@
 import os
+import shlex
+import shutil
 import subprocess
 import sys
 from datetime import datetime
 from typing import List, Optional, Tuple
+
+# The Day One CLI is sandboxed (com.apple.security.app-sandbox) and can only
+# read files inside the app's group container. Attachments passed from anywhere
+# else are silently dropped: the entry is created, exit code is 0, but the
+# media bytes never arrive and the images stay blank forever. So every
+# attachment is staged into this folder first, and cleaned up afterwards.
+_STAGING_DIR = os.path.expanduser(
+    "~/Library/Group Containers/5U8NS4GX82.dayoneapp2/twixodus-staging"
+)
+
+
+def _stage_attachments(attachments: List[str]) -> List[str]:
+    """
+    Copies attachments into the Day One group container so the sandboxed CLI
+    can read them. Returns the staged paths. Files that can't be copied are
+    passed through unstaged (the CLI will then skip their data, as before).
+    """
+    try:
+        os.makedirs(_STAGING_DIR, exist_ok=True)
+    except OSError as e:
+        print(f"Warning: can't create staging dir {_STAGING_DIR}: {e}", file=sys.stderr)
+        return attachments
+
+    staged = []
+    for i, path in enumerate(attachments):
+        # The index prefix prevents collisions between same-named files.
+        target = os.path.join(_STAGING_DIR, f"{i:02d}-{os.path.basename(path)}")
+        try:
+            shutil.copy2(path, target)
+            staged.append(target)
+        except OSError as e:
+            print(f"Warning: couldn't stage attachment {path}: {e}", file=sys.stderr)
+            staged.append(path)
+    return staged
+
+
+def _cleanup_staged(staged: List[str]):
+    """Removes staged copies. The CLI copies them into its own PendingMedia
+    queue synchronously, so they're disposable as soon as the command returns."""
+    for path in staged:
+        if path.startswith(_STAGING_DIR):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 
 
 def add_post(
@@ -30,21 +77,29 @@ def add_post(
     Returns:
         True if the command was executed successfully, otherwise False.
     """
-    # First attempt: execute the command as constructed.
-    success = _execute_command(
-        _build_command(text, journal, tags, date_time, coordinate, attachments)
-    )
+    # Stage attachments inside the Day One group container — the sandboxed CLI
+    # can't read them from anywhere else (see _STAGING_DIR).
+    staged = _stage_attachments(attachments) if attachments else None
 
-    # If the first attempt failed AND we were trying to add attachments,
-    # retry the command without the attachments.
-    if not success and attachments:
-        print(
-            "Warning: Failed to add entry with attachments. Retrying without them...",
-            file=sys.stderr,
+    try:
+        # First attempt: execute the command as constructed.
+        success = _execute_command(
+            _build_command(text, journal, tags, date_time, coordinate, staged)
         )
-        return _execute_command(
-            _build_command(text, journal, tags, date_time, coordinate, None)
-        )
+
+        # If the first attempt failed AND we were trying to add attachments,
+        # retry the command without the attachments.
+        if not success and staged:
+            print(
+                "Warning: Failed to add entry with attachments. Retrying without them...",
+                file=sys.stderr,
+            )
+            return _execute_command(
+                _build_command(text, journal, tags, date_time, coordinate, None)
+            )
+    finally:
+        if staged:
+            _cleanup_staged(staged)
 
     # Return the result of the first attempt if it succeeded or if there were no attachments.
     return success
@@ -123,7 +178,9 @@ def _execute_command(command: List[str]) -> bool:
         # subprocess.run is the recommended way to run external commands.
         # It waits for the command to complete and captures its output.
         if os.path.exists("tweets_to_debug"):
-            print(f"Executing command: {' '.join(command)}")
+            # shlex.join quotes each argument, so the printed line can be
+            # copy-pasted into a shell verbatim.
+            print(f"Executing command: {shlex.join(command)}")
         result = subprocess.run(
             command,
             capture_output=True,  # Captures stdout and stderr.
