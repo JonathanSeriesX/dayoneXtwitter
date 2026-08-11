@@ -1,6 +1,5 @@
 import os
 import warnings
-from datetime import datetime
 
 import config
 import processing_utils
@@ -10,6 +9,13 @@ from processing_utils import (
     load_and_prepare_threads,
     process_single_thread,
     load_debug_tweet_ids,
+    write_reimport_report,
+)
+from thread_selection import (
+    parse_date_range,
+    partition_threads_by_date,
+    count_tweets_before,
+    format_reimport_report,
 )
 
 warnings.filterwarnings("ignore", message=".*NotOpenSSLWarning.*") # for Python 3.9 compatibility (default on Sonoma)
@@ -32,40 +38,55 @@ def main():
     print(f"Loaded {len(processed_tweet_ids)} previously processed tweet IDs.")
 
     # Parse start and end dates from config
-    start_date_str = config.START_DATE
-    end_date_str = config.END_DATE
-
     try:
-        start_date = datetime.strptime(start_date_str, "%d %B %Y")
-        end_date = datetime.strptime(end_date_str, "%d %B %Y")
+        start_date, end_date = parse_date_range(config.START_DATE, config.END_DATE)
     except ValueError:
         print("Error: Invalid date format in config.py. Please use 'DD Month YYYY'.")
         return
 
-    # Filter threads based on date range
-    filtered_threads = []
-    for thread in threads:
-        # Assuming the first tweet in the thread determines the thread's creation date
-        if thread and "tweet" in thread[0] and "created_at" in thread[0]["tweet"]:
-            thread_date = thread[0]["tweet"]["created_at"].replace(
-                tzinfo=None
-            )  # Remove timezone for comparison
-            if start_date <= thread_date <= end_date:
-                filtered_threads.append(thread)
+    # Filter threads based on date range, keeping older threads that were
+    # extended within it separately — those need a full re-import.
+    filtered_threads, extended_threads = partition_threads_by_date(
+        threads, start_date, end_date
+    )
+    if not config.REIMPORT_EXTENDED_THREADS:
+        extended_threads = []
 
     if len(threads) != len(filtered_threads):
         print(
             f"Filtered down to {len(filtered_threads)} threads within the specified date range."
         )
 
-    for i, thread in enumerate(filtered_threads):
+    if extended_threads:
+        print(
+            f"{len(extended_threads)} older thread(s) were extended within this date "
+            "range and will be re-imported in full."
+        )
+
+    # Extended threads go first so a MAX_THREADS_TO_PROCESS limit can't starve them.
+    threads_to_process = [(thread, True) for thread in extended_threads] + [
+        (thread, False) for thread in filtered_threads
+    ]
+
+    reimported = []
+    for i, (thread, is_reimport) in enumerate(threads_to_process):
         if (
             config.MAX_THREADS_TO_PROCESS is not None
             and i >= config.MAX_THREADS_TO_PROCESS
         ):
             print(f"Stopping after processing {config.MAX_THREADS_TO_PROCESS} threads.")
             break
-        process_single_thread(thread, processed_tweet_ids)
+        entry = process_single_thread(
+            thread, processed_tweet_ids, force_reimport=is_reimport
+        )
+        if is_reimport and entry:
+            entry["previous_tweet_count"] = count_tweets_before(thread, start_date)
+            reimported.append(entry)
+
+    if reimported:
+        write_reimport_report(
+            format_reimport_report(reimported, start_date, config.CURRENT_USERNAME)
+        )
 
     if debug_tweet_ids:
         if os.path.isfile(processing_utils.STATUSES_FILE_PATH):

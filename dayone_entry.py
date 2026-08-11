@@ -30,22 +30,52 @@ def add_post(
     Returns:
         True if the command was executed successfully, otherwise False.
     """
-    # The base command for creating a new entry, with the text as the primary content.
-    # Using a list for the command and its arguments is crucial for security,
-    # as it prevents shell injection vulnerabilities by ensuring each argument
-    # is treated as a distinct entity, not part of a single shell string.
-    command = ["dayone", "new", text]
+    # First attempt: execute the command as constructed.
+    success = _execute_command(
+        _build_command(text, journal, tags, date_time, coordinate, attachments)
+    )
 
-    # Append optional arguments based on the provided parameters.
-    # Each 'if' block adds the corresponding Day One CLI flag and its value(s).
+    # If the first attempt failed AND we were trying to add attachments,
+    # retry the command without the attachments.
+    if not success and attachments:
+        print(
+            "Warning: Failed to add entry with attachments. Retrying without them...",
+            file=sys.stderr,
+        )
+        return _execute_command(
+            _build_command(text, journal, tags, date_time, coordinate, None)
+        )
+
+    # Return the result of the first attempt if it succeeded or if there were no attachments.
+    return success
+
+
+def _build_command(
+    text: str,
+    journal: Optional[str],
+    tags: Optional[List[str]],
+    date_time: Optional[datetime],
+    coordinate: Optional[Tuple[float, float]],
+    attachments: Optional[List[str]],
+) -> List[str]:
+    """
+    Assembles the Day One CLI invocation.
+
+    Per the CLI documentation, all options must come BEFORE the `new` command:
+        dayone --journal J --attachments p1 p2 -- new <text>
+    The `--` terminator is required after list-valued options such as
+    --attachments and --tags, so the command isn't swallowed as another list
+    item; it's harmless otherwise, so it is always included.
+
+    Using a list for the command and its arguments is crucial for security,
+    as it prevents shell injection vulnerabilities by ensuring each argument
+    is treated as a distinct entity, not part of a single shell string.
+    """
+    command = ["dayone"]
+
     if journal:
         # --journal <journal_name>: Specifies the journal to which the entry will be added.
         command.extend(["--journal", journal])
-
-    if tags:
-        # --tags <tag1> <tag2> ...: Adds one or more tags to the entry.
-        command.append("--tags")
-        command.extend(tags)
 
     if date_time:
         # --date "YYYY-MM-DD HH:MM:SS": Sets the creation date and time of the entry.
@@ -60,36 +90,19 @@ def add_post(
         lat, lon = coordinate
         command.extend(["--coordinate", str(lat), str(lon)])
 
+    if tags:
+        # --tags <tag1> <tag2> ...: Adds one or more tags to the entry.
+        command.append("--tags")
+        command.extend(tags)
+
     if attachments:
         # --attachments <path1> <path2> ...: Attaches one or more files to the entry.
-        # Absolute paths to the files are required.
+        # Absolute paths to the files are required. The CLI supports at most 10.
         command.append("--attachments")
         command.extend(attachments)
 
-    # First attempt: execute the command as constructed.
-    success = _execute_command(command)
-
-    # If the first attempt failed AND we were trying to add attachments,
-    # retry the command without the attachments.
-    if not success and attachments:
-        print(
-            "Warning: Failed to add entry with attachments. Retrying without them...",
-            file=sys.stderr,
-        )
-        # Find the position of the '--attachments' flag and slice the command
-        # list to exclude it and all subsequent file paths.
-        try:
-            attachment_index = command.index("--attachments")
-            command_without_attachments = command[:attachment_index]
-            # Execute the command again and return the result of this second attempt.
-            return _execute_command(command_without_attachments)
-        except ValueError:
-            # This case should technically not be reached if `attachments` is truthy,
-            # but it's good practice to handle it.
-            return False  # Indicate failure as something went wrong with command construction.
-
-    # Return the result of the first attempt if it succeeded or if there were no attachments.
-    return success
+    command.extend(["--", "new", text])
+    return command
 
 
 def _execute_command(command: List[str]) -> bool:
