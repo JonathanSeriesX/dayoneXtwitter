@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import humanize
 
 import config
-from llm_analyzer import get_tweet_summary
+from llm_analyzer import generate_llm_title
 
 
 def escape_md(text: str) -> str:
@@ -94,15 +94,32 @@ def aggregate_thread_data(thread: list):
     return entry_text, entry_tags, entry_media_files, entry_date_time, entry_coordinate
 
 
-def generate_entry_title(entry_text: str, category: str, thread_length: int):
-    """Generates the title for the Day One entry, optionally using an LLM."""
+def generate_entry_title(entry_text: str, category: str, thread_length: int, media_files=None):
+    """Generates the title for the Day One entry, optionally using an LLM.
+
+    The LLM produces a full action phrase ("Expressed frustration at airport
+    security", "Posted a meme about cats") from the entry text and, for vision
+    models, its attached images. It only runs for the author's own content —
+    threads and standalone tweets; replies, retweets, quotes, and callouts keep
+    their descriptive category titles. When the LLM can't produce a confident
+    title, the category ("Wrote a thread" / "Tweeted") is used as-is.
+    """
+    if not config.PROCESS_TITLES_WITH_LLM:
+        return category
     if category.startswith("Replied to"):
         return category
-    if config.PROCESS_TITLES_WITH_LLM and thread_length > 1:  # we only process threads
-        llm_summary = get_tweet_summary(entry_text)
-        print("Summary: " + llm_summary)
-        if llm_summary != "Uncategorized":
-            return f"Wrote {llm_summary}"
+
+    is_thread = thread_length > 1
+    is_single_tweet = category == "Tweeted" and getattr(
+        config, "LLM_TITLES_FOR_SINGLE_TWEETS", False
+    )
+    if not (is_thread or is_single_tweet):
+        return category
+
+    llm_title = generate_llm_title(entry_text, media_files)
+    if llm_title:
+        print("Title: " + llm_title)
+        return llm_title
     return category
 
 

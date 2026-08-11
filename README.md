@@ -73,7 +73,9 @@ I've meticulously analysed nearly every edge case to ensure your tweets will ren
    ollama serve
    ```
 
-   - Will produce results such as “a thread about Formula 1“ or “a thread about second-hand shopping“.
+   - Will produce titles such as “Wrote about Formula 1“, “Expressed frustration at airport security“ or “Posted a meme about cats“.
+   - The model also looks at attached photos, so a tweet that just says “vibes” under a concert photo still gets a meaningful title. When it can't tell what a tweet is about, the title stays a plain “Tweeted”.
+   - By default both threads and standalone tweets are titled; set `LLM_TITLES_FOR_SINGLE_TWEETS = False` in `config.py` to only title threads (much faster on large archives).
    - `qwen3.5:9b-mlx` is the default and runs quickly on Apple Silicon Macs with 16 GB+ of memory. On Apple Silicon Macs with less memory, pull the lighter `qwen3.5:4b-mlx` instead and set `OLLAMA_MODEL_NAME` accordingly in `config.py`.
    - The `-mlx` builds require Apple Silicon. On an Intel Mac, use the plain `qwen3.5:4b` build instead.
    - Downloads several gigabytes of data (roughly 9 GB for the 9B model; the 4B one is substantially smaller), so be mindful of metered connections.
