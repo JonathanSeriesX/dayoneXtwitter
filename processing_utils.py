@@ -228,7 +228,7 @@ def process_single_thread(thread: list, processed_tweet_ids: set, force_reimport
 
     entry_text, entry_tags, entry_media_files, entry_date_time, entry_coordinate = aggregate_thread_data(thread)
     
-    title = generate_entry_title(entry_text, category, len(thread))
+    title = generate_entry_title(entry_text, category, len(thread), entry_media_files)
     entry_text = build_entry_content(entry_text, first_tweet_in_thread, category, title)
 
     target_journal = get_target_journal(category, tweet_id)
