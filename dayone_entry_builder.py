@@ -123,6 +123,23 @@ def generate_entry_title(entry_text: str, category: str, thread_length: int, med
     return category
 
 
+def format_source_markdown(source: str):
+    """Converts a tweet's HTML "source" field — the client it was posted from,
+    e.g. '<a href="http://twitter.com/download/android" rel="nofollow">Twitter
+    for Android</a>' — into a Markdown link. Sources without a link (old tweets
+    just say "web") are returned as plain text. Returns None if there's nothing
+    usable."""
+    if not source:
+        return None
+    m = re.search(r'<a href="([^"]*)"[^>]*>([^<]+)</a>', source)
+    if m:
+        url, name = m.group(1), m.group(2).strip()
+        if name:
+            return f"[{name}]({url})" if url else name
+    text = re.sub(r"<[^>]+>", "", source).strip()
+    return text or None
+
+
 def build_entry_content(entry_text: str, first_tweet: dict, category: str, title: str):
     """Constructs the final text content for the Day One entry."""
     if first_tweet.get("in_reply_to_status_id_str"):
@@ -141,6 +158,11 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
         reply_to_tweet_id = first_tweet["in_reply_to_status_id_str"]
         reply_to_url = f"https://twitter.com/i/web/status/{reply_to_tweet_id}"
         entry_text += f"In response to [this tweet]({reply_to_url}), which is part of the conversation with {mentions_str}\n"
+    elif config.SHOW_TWEET_SOURCE:
+        # A thread is stamped with its first tweet's client.
+        source_md = format_source_markdown(first_tweet.get("source"))
+        if source_md:
+            entry_text += f"Sent from {source_md}\n"
 
     entry_text = escape_md(f"# {title}\n\n{entry_text}\n\n")
 

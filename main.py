@@ -10,6 +10,7 @@ from processing_utils import (
     process_single_thread,
     load_debug_tweet_ids,
     write_reimport_report,
+    extension_marker,
 )
 from thread_selection import (
     parse_date_range,
@@ -49,8 +50,6 @@ def main():
     filtered_threads, extended_threads = partition_threads_by_date(
         threads, start_date, end_date
     )
-    if not config.REIMPORT_EXTENDED_THREADS:
-        extended_threads = []
 
     if len(threads) != len(filtered_threads):
         print(
@@ -68,7 +67,18 @@ def main():
         (thread, False) for thread in filtered_threads
     ]
 
+    # How many threads this run still has to import: a re-imported thread is
+    # pending until its extension marker is recorded, an ordinary one until its
+    # root tweet ID is.
+    total_pending = sum(
+        1
+        for thread, is_reimport in threads_to_process
+        if (extension_marker(thread) if is_reimport else thread[0]["tweet"]["id_str"])
+        not in processed_tweet_ids
+    )
+
     reimported = []
+    imported_count = 0
     for i, (thread, is_reimport) in enumerate(threads_to_process):
         if (
             config.MAX_THREADS_TO_PROCESS is not None
@@ -79,6 +89,9 @@ def main():
         entry = process_single_thread(
             thread, processed_tweet_ids, force_reimport=is_reimport
         )
+        if entry:
+            imported_count += 1
+            print(f"Progress: {imported_count}/{total_pending}")
         if is_reimport and entry:
             entry["previous_tweet_count"] = count_tweets_before(thread, start_date)
             reimported.append(entry)
