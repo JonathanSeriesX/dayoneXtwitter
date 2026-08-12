@@ -6,7 +6,12 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from dayone_entry_builder import aggregate_thread_data, build_entry_content, generate_entry_title
+from dayone_entry_builder import (
+    aggregate_thread_data,
+    build_entry_content,
+    format_source_markdown,
+    generate_entry_title,
+)
 from llm_analyzer import _normalize_title, _pick_images
 
 class TestDayoneEntryBuilder(unittest.TestCase):
@@ -61,6 +66,60 @@ class TestDayoneEntryBuilder(unittest.TestCase):
         self.assertIn('Some text', final_text)
         self.assertNotIn('Likes:', final_text)
 
+class TestTweetSource(unittest.TestCase):
+
+    ANDROID = (
+        '<a href="http://twitter.com/download/android" rel="nofollow">'
+        "Twitter for Android</a>"
+    )
+
+    def test_format_source_markdown_builds_link(self):
+        self.assertEqual(
+            format_source_markdown(self.ANDROID),
+            "[Twitter for Android](http://twitter.com/download/android)",
+        )
+
+    def test_format_source_markdown_plain_text_passes_through(self):
+        self.assertEqual(format_source_markdown("web"), "web")
+
+    def test_format_source_markdown_nothing_usable(self):
+        self.assertIsNone(format_source_markdown(None))
+        self.assertIsNone(format_source_markdown(""))
+        self.assertIsNone(format_source_markdown("<span></span>"))
+
+    def test_sent_from_added_after_last_separator(self):
+        first_tweet = {"id_str": "1", "source": self.ANDROID}
+        final_text = build_entry_content("Some text\n___\n", first_tweet, "Tweeted", "T")
+        self.assertIn(
+            "___\nSent from [Twitter for Android](http://twitter.com/download/android)",
+            final_text,
+        )
+
+    def test_replies_get_no_sent_from(self):
+        first_tweet = {
+            "id_str": "1",
+            "in_reply_to_status_id_str": "99",
+            "source": self.ANDROID,
+        }
+        final_text = build_entry_content(
+            "@vera hello\n___\n", first_tweet, "Replied to @vera", "T"
+        )
+        self.assertNotIn("Sent from", final_text)
+
+    def test_sent_from_can_be_disabled(self):
+        first_tweet = {"id_str": "1", "source": self.ANDROID}
+        with patch("dayone_entry_builder.config.SHOW_TWEET_SOURCE", False):
+            final_text = build_entry_content(
+                "Some text\n___\n", first_tweet, "Tweeted", "T"
+            )
+        self.assertNotIn("Sent from", final_text)
+
+    def test_missing_source_adds_nothing(self):
+        first_tweet = {"id_str": "1"}
+        final_text = build_entry_content("Some text\n___\n", first_tweet, "Tweeted", "T")
+        self.assertNotIn("Sent from", final_text)
+
+
 class TestNormalizeTitle(unittest.TestCase):
 
     def test_cleans_quotes_period_and_capitalizes(self):
@@ -104,7 +163,8 @@ class TestPickImages(unittest.TestCase):
                 p = os.path.join(tmp, f"{i}.png")
                 open(p, "wb").close()
                 paths.append(p)
-            self.assertEqual(len(_pick_images(paths)), 4)
+            with patch("llm_analyzer.config.LLM_MAX_IMAGES", 4):
+                self.assertEqual(len(_pick_images(paths)), 4)
 
 
 class TestGenerateEntryTitle(unittest.TestCase):
