@@ -10,11 +10,20 @@
 #     Privacy & Security → "Open Anyway".
 #   * Developer ID secrets set: the app is signed with the hardened runtime,
 #     notarized by Apple, and stapled — it opens like any other app.
-#     Required secrets:
+#
+#     Signing secrets (always needed for the real thing):
 #       DEVELOPER_ID_P12_BASE64   base64 of the "Developer ID Application"
 #                                 certificate exported as .p12
 #                                 (base64 -i cert.p12 | pbcopy)
 #       DEVELOPER_ID_P12_PASSWORD the .p12's password
+#
+#     Notarization, option A — App Store Connect API key (preferred; works
+#     with a key issued by whoever owns the developer account):
+#       ASC_API_KEY_P8_BASE64     base64 of the AuthKey_XXXX.p8 file
+#       ASC_API_KEY_ID            the key's Key ID
+#       ASC_API_ISSUER_ID         the team's Issuer ID
+#
+#     Notarization, option B — Apple ID (fallback if A isn't set):
 #       APPLE_ID                  the Apple ID that owns the certificate
 #       APPLE_TEAM_ID             the 10-character team ID
 #       APPLE_APP_PASSWORD        an app-specific password for notarytool
@@ -99,20 +108,37 @@ jobs:
 
       - name: Notarize & staple (if configured)
         env:
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           IDENTITY: ${{ steps.signing.outputs.identity }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          if [ "$IDENTITY" = "-" ] || [ -z "$APPLE_ID" ]; then
-            echo "Skipping notarization (no Developer ID signing or no Apple ID secrets)."
+          if [ "$IDENTITY" = "-" ]; then
+            echo "Skipping notarization (app is ad-hoc signed)."
             exit 0
           fi
           ZIP="dist/Twixodus-$VERSION.zip"
-          xcrun notarytool submit "$ZIP" \
-            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_PASSWORD" --wait
+          if [ -n "$ASC_API_KEY_P8_BASE64" ]; then
+            echo "Notarizing with an App Store Connect API key…"
+            echo "$ASC_API_KEY_P8_BASE64" | base64 -d > AuthKey.p8
+            xcrun notarytool submit "$ZIP" \
+              --key AuthKey.p8 --key-id "$ASC_API_KEY_ID" \
+              --issuer "$ASC_API_ISSUER_ID" --wait
+            rm AuthKey.p8
+          elif [ -n "$APPLE_ID" ]; then
+            echo "Notarizing with an Apple ID…"
+            xcrun notarytool submit "$ZIP" \
+              --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" --wait
+          else
+            echo "Developer ID signing is set up but no notarization secrets exist." >&2
+            echo "Add ASC_API_KEY_* (preferred) or APPLE_ID/APPLE_TEAM_ID/APPLE_APP_PASSWORD." >&2
+            exit 1
+          fi
           # Staple the ticket to the app itself and re-zip, so the download
           # verifies even offline.
           APP="build/ReleaseDerivedData/Build/Products/Release/Twixodus.app"
