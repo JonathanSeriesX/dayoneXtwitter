@@ -21,3 +21,4 @@ tweets_to_debug
 Twixodus.xcodeproj
 build/
 DerivedData/
+dist/

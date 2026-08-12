@@ -1,6 +1,6 @@
 ## Twixodus
 
-The **ultimate** tool to seamlessly import your Twitter archive into the [Day One journaling app](https://dayoneapp.com) — now a native macOS app.
+The **ultimate** tool to seamlessly import your Twitter archive into the [Day One journaling app](https://dayoneapp.com).
 
 <img src="pics/twatter.jpg" alt="Intro" width="400"/>
 
@@ -26,9 +26,8 @@ By importing your Twitter archive into Day One, you can:
 - Handles threads _gracefully_ and combines them into single, cohesive Day One entries
 - Supports media attachments, hashtags, locations
 - Appends like/retweet count under each tweet
-- Remembers what it already imported (per Twitter account, in Application Support) — run it again next year with a fresh archive and only the new tweets get imported
-- Detects threads you extended since the last import and re-imports them in full, with a reminder to delete the older, shorter copies
-- Optionally titles your entries with a local LLM via [Ollama](https://ollama.com) (“Wrote about Formula 1”, “Expressed frustration at airport security”) — the model even looks at the attached photos
+- Remembers what it already imported — run it again next year with a fresh archive and only the new tweets get imported
+- Optionally titles your entries with a local LLM via [Ollama](https://ollama.com) — “Wrote about Formula 1”, “Expressed frustration at airport security”, etc.
 
 <img src="pics/replies.png" alt="Intro" width="600"/>
 
@@ -36,9 +35,15 @@ By importing your Twitter archive into Day One, you can:
 
 ### Requirements
 
-- macOS Sequoia or newer (on Tahoe you get the fancy Liquid Glass look). If you don't have a Mac, find a friend who does or spin up a virtual machine.
+- macOS Sequoia or newer. If you don't have a Mac, find a friend who does or spin up a virtual machine.
 - The [Day One app](https://apps.apple.com/tr/app/day-one/id1055511498?mt=12) with its [command-line tool](https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/) installed
 - Day One Premium for more than one attachment per entry (free trial available, feel free to cancel it right after the import)
+
+### Install
+
+Grab the latest `Twixodus-x.y.z.zip` from [Releases](../../releases), unzip, and drag **Twixodus.app** into Applications.
+
+> **Note:** releases aren't notarized by Apple yet, so the first launch needs a one-time blessing: open the app, dismiss the warning, then go to **System Settings → Privacy & Security** and click **Open Anyway**. (Or build from source — see below.)
 
 ### Usage
 
@@ -46,11 +51,14 @@ By importing your Twitter archive into Day One, you can:
 2. **Install Day One and its CLI** (see links above), open the app, and (optionally) sign in.
 3. **Create the journals**: go to [dayone://preferences](dayone://preferences) → **Journals** and add `Tweets` (and `Twitter Replies` if you want replies too — any names work, you'll pick them in the app).
 4. **(Optional) Pause sync** in Day One preferences → **Sync** if you're on a metered connection.
-5. **Launch Twixodus** and drop your `twitter-….zip` (or the unpacked folder) onto the window.
-6. Walk through the settings — journals, date range, whether your account still exists — and press **Start Import**. You can pause or cancel any time; the ledger remembers every imported thread, so the next run picks up where you left off.
-7. Keep the Day One app running during the import: it's what moves the staged media into the entries.
+5. **Setup Ollama** on your Mac (see the next section for more details)
+6. **Launch Twixodus** and drop your `twitter-….zip` (or the unpacked folder) onto the window.
+7. Walk through the settings — journals, date range, whether your account still exists — and press **Start Import**. You can pause or cancel any time; the ledger remembers every imported thread, so the next run picks up where you left off.
+8. Keep the Day One app running during the import: it's what moves the staged media into the entries.
 
 #### AI titles (optional)
+
+Execute following commands in your terminal:
 
 ```bash
 brew install --cask ollama-app
@@ -58,19 +66,7 @@ ollama pull qwen3.5:9b-mlx
 ollama serve
 ```
 
-Then flip on “Title entries with a local LLM” in the app. `qwen3.5:9b-mlx` runs quickly on Apple Silicon Macs with 16 GB+ of memory; on smaller Macs pull `qwen3.5:4b-mlx` instead and change the model name in the app. When the model can't tell what a tweet is about, the title stays a plain “Tweeted”. Delete the model afterwards with `ollama rm qwen3.5:9b-mlx` to reclaim the gigabytes.
-
-### Building from source
-
-```bash
-brew install xcodegen
-xcodegen generate
-open Twixodus.xcodeproj
-```
-
-The app is plain SwiftUI + Foundation, no dependencies. `Twixodus/Pipeline/` is the whole import pipeline (a faithful port of the original Python script, verified byte-identical over a real 61,755-tweet archive); `Twixodus/App/` is the UI. `xcodebuild -scheme Twixodus test` runs the unit tests. The original Python implementation lives in [legacy/](legacy/) as the reference.
-
----
+Then flip on “Title entries with a local LLM” in the app. `qwen3.5:9b-mlx` runs quickly on Apple Silicon Macs with 16 GB+ of memory; on smaller Macs pull `qwen3.5:4b-mlx` instead and change the model name in the app. When the model can't tell what a tweet is about, the title stays a plain “Tweeted”. Delete the model afterwards with `ollama rm qwen3.5:9b-mlx` to reclaim the storage space.
 
 ### 🥺👉👈
 
@@ -90,6 +86,6 @@ If you find this useful, please consider supporting me:
 
 ### Plans (if the project gains traction and/or I have lots of spare time)
 
-- Signed & notarized downloads at twixodus.evgenii.org
-- Support for grouping relevant successive tweets into a single post (relevant for tweets posted before 2017, as there were no threads back then)
+- Signed & notarized downloads
 - Better LLM-based title generation
+- Support for grouping relevant successive tweets into a single post (relevant for tweets posted before 2017, as there were no threads back then)
