@@ -1,7 +1,7 @@
 import json
 import re
 import os
-from collections import defaultdict, deque
+from collections import defaultdict
 from datetime import datetime
 
 import config
@@ -451,18 +451,22 @@ def combine_threads(tweets, media_limit=26):
         if root["tweet"]["id_str"] in processed_ids:
             continue
 
-        # This queue will hold all tweets in the conversation chain starting from the root.
-        # We will drain this queue, creating new thread segments whenever the media limit is hit.
-        super_thread_queue = deque([root])
+        # This stack holds all tweets in the conversation chain starting from the
+        # root, visited depth-first so that when a thread forks, each branch is
+        # emitted contiguously (the full first branch, then the next) instead of
+        # interleaving branches level by level. Chronologically-first branches
+        # come first. We drain the stack, starting a new thread segment whenever
+        # the media limit is hit.
+        super_thread_stack = [root]
 
-        while super_thread_queue:
+        while super_thread_stack:
             # Start a new thread segment
             current_segment = []
             media_count_in_segment = 0
 
-            # Build the segment until the queue is empty or the media limit is reached
-            while super_thread_queue:
-                next_tweet = super_thread_queue[0]  # Peek at the next tweet
+            # Build the segment until the stack is empty or the media limit is reached
+            while super_thread_stack:
+                next_tweet = super_thread_stack[-1]  # Peek at the next tweet
                 media_in_next_tweet = _count_media(next_tweet)
 
                 # SPLIT CONDITION:
@@ -475,19 +479,20 @@ def combine_threads(tweets, media_limit=26):
                     # start of the next segment in the next outer loop iteration.
                     break
 
-                # If we're here, the tweet fits. Pop it from the queue and process it.
-                current_tweet = super_thread_queue.popleft()
+                # If we're here, the tweet fits. Pop it from the stack and process it.
+                current_tweet = super_thread_stack.pop()
 
                 current_segment.append(current_tweet)
                 processed_ids.add(current_tweet["tweet"]["id_str"])
                 media_count_in_segment += _count_media(current_tweet)
 
-                # Find its children, sort them, and add them to the main queue for processing.
+                # Find its children and push them onto the stack in reverse ID
+                # order, so the oldest child is popped (and emitted) first.
                 children = children_map.get(current_tweet["tweet"]["id_str"], [])
                 sorted_children = sorted(
-                    children, key=lambda t: int(t["tweet"]["id_str"])
+                    children, key=lambda t: int(t["tweet"]["id_str"]), reverse=True
                 )
-                super_thread_queue.extend(sorted_children)
+                super_thread_stack.extend(sorted_children)
 
             # Add the completed segment to our final list of threads.
             if current_segment:

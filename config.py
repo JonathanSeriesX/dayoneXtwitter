@@ -6,7 +6,9 @@ CURRENT_USERNAME = "JonathanSeriesX"  # Set to your current username. Or set to 
 MAX_THREADS_TO_PROCESS = None  # Max threads to process, or None for no limit
 SHUFFLE_MODE = True  # True to go over threads during import in a random order; False to start from oldest
 IGNORE_RETWEETS = False  # True to skip retweets entirely
-SHOW_TWEET_SOURCE = True  # True to end entries with "Sent from <client>" (Twitter for Android, etc.)
+SHOW_TWEET_SOURCE = (
+    True  # True to end entries with "Sent from <client>" (Twitter for Android, etc.)
+)
 
 # Date range for processing tweets. Only threads started between these two dates will be processed.
 # Format: "DD Month YYYY" (e.g., "21 March 2006")
@@ -32,8 +34,10 @@ Expressed frustration at airport security
 Posted a meme about cats
 Shared photos from a music festival
 Complained about the weather
-Rules: start with a past-tense verb, English only, no period at the end, no quotes, no emoji.
-Only state what you can actually see in the text or attached images; never guess or invent specifics.
+Rules: start with a past-tense verb, no period at the end, no quotes, no emoji.
+You don't care if the tweet's language is different. 
+Deliver answer in a beautiful natural British English.
+Only state what you can actually see in the text or attached images; strive not to invent specifics.
 If the tweet is too short, vague, or unclear to title honestly, reply with exactly: Tweeted
 Here is the tweet:
 """  # Tweet content follows afterwards

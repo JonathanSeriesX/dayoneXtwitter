@@ -11,7 +11,7 @@ The **ultimate** tool to seamlessly import your Twitter archive into the [Day On
 By importing your Twitter archive into Day One with this script, you can:
 
 - Browse your entire tweet history offline with lightning-fast random access
-- Rediscover what you posted “on this day“ in past years—like [Timehop](https://www.timehop.com), but with no limitations
+- Rediscover what you posted “on this day“ in past years—like [Timehop](https://www.timehop.com), but nicer and with no limitations
 - Browse all your tweeted photos and videos in a sleek, organized gallery
 - Perform full-text searches that actually work
   - Easily purge any unwanted [kompromat](https://en.wikipedia.org/wiki/Kompromat) from your old tweets
@@ -26,9 +26,8 @@ By importing your Twitter archive into Day One with this script, you can:
 - Handles threads _gracefully_ and combines them into single, cohesive Day One entries
 - Supports media attachments, hashtags, locations
 - Appends like/retweet count under each tweet
-- Catches threads you kept adding to across import runs, and tells you which stale entries to delete (see [re-imported threads](#re-imported-threads))
 
-I've meticulously analysed nearly every edge case to ensure your tweets will render flawlessly in Day One.
+I've meticulously analysed every possible edge case to ensure your tweets will render flawlessly in Day One.
 
 <img src="pics/replies.png" alt="Intro" width="600"/>
 
@@ -36,8 +35,8 @@ I've meticulously analysed nearly every edge case to ensure your tweets will ren
 
 ### Caveats
 
-- Day One’s free plan lets you add just one attachment per entry. Subscribe to Premium ¯\\\_(ツ)\_/¯ (free trial available, feel free to cancel it right away)
-- This script only works on macOS Sonoma and newer. If you don't have a Mac, find a friend who does or spin up the virtual machine.
+- Day One’s free plan lets you add just one attachment per entry. Subscribe to Premium ¯\\\_(ツ)\_/¯ (free trial available, feel free to cancel it right after the import)
+- This script only works on macOS Sequoia and newer. If you don't have a Mac, find a friend who does or spin up the virtual machine.
 
 ---
 
@@ -60,7 +59,7 @@ I've meticulously analysed nearly every edge case to ensure your tweets will ren
    If you want to include replies, add another journal called `Twitter Replies` (or see [config options](#config-options)).
 
 6. **(Optional) Pause sync**  
-   Day One will attempt to sync new posts into the cloud automatically. If you're using unreliable or metered connection, you might want to visit Day One preferences → **Sync**, and click **Pause sync for 24 hours**.
+   Day One will attempt to sync new posts into the cloud automatically. If you're on an unreliable or metered connection, you might want to visit Day One preferences → **Sync**, and click **Pause sync for 24 hours**.
 
 7. **Extract your archive**  
    Place the `twitter~.zip` file in this project folder and unzip it.
@@ -121,3 +120,4 @@ If you find this useful, please consider supporting me:
 
 - Swift rewrite / native macOS app
 - Support for grouping relevant successive tweets into a single post (relevant for tweets posted before 2017, as there were no threads back then)
+- Better LLM-based title generation
