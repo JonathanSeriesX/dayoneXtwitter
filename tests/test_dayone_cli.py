@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import dayone_entry
-from dayone_entry import _build_command, _stage_attachments, _cleanup_staged
+import dayone_cli
+from dayone_cli import _build_command, _stage_attachments, _cleanup_staged
 
 
 class TestBuildCommand(unittest.TestCase):
@@ -49,7 +49,7 @@ class TestStaging(unittest.TestCase):
                 with open(p, "wb") as f:
                     f.write(b"data")
 
-            with patch.object(dayone_entry, "_STAGING_DIR", staging):
+            with patch.object(dayone_cli, "_STAGING_DIR", staging):
                 staged = _stage_attachments([a, b])
                 self.assertEqual(len(staged), 2)
                 for p in staged:
@@ -66,7 +66,7 @@ class TestStaging(unittest.TestCase):
     def test_missing_source_falls_through_unstaged(self):
         with tempfile.TemporaryDirectory() as container:
             staging = os.path.join(container, "twixodus-staging")
-            with patch.object(dayone_entry, "_STAGING_DIR", staging):
+            with patch.object(dayone_cli, "_STAGING_DIR", staging):
                 staged = _stage_attachments(["/nonexistent/file.jpg"])
                 self.assertEqual(staged, ["/nonexistent/file.jpg"])
                 # cleanup must not touch paths outside the staging dir

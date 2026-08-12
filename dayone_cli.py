@@ -1,3 +1,10 @@
+"""Step 6 of the pipeline: hand a finished entry to the Day One CLI.
+
+This is the only module that talks to Day One. add_post() builds the `dayone`
+command line, stages the attachments where the sandboxed CLI can read them,
+and runs it.
+"""
+
 import os
 import shlex
 import shutil

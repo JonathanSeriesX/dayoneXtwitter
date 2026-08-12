@@ -1,12 +1,26 @@
+"""Step 5b of the pipeline: compose the Day One entry for one thread.
+
+Takes a categorized thread and produces everything the entry needs (see
+models.EntryContent): the Markdown body with per-tweet like/retweet counts,
+the tags, the media attachments, the entry date and location, plus a title
+(LLM-generated when enabled) and the journal it belongs in.
+"""
+
+from __future__ import annotations
+
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
+from typing import List, Optional
+
 import humanize
 
 import config
 from llm_analyzer import generate_llm_title
+from models import EntryContent, Thread, Tweet
 
 
 def escape_md(text: str) -> str:
+    """Escapes Markdown so tweet text can't accidentally format the entry."""
     # 1) Handle line-start markers
     lines = []
     for idx, line in enumerate(text.splitlines()):
@@ -26,8 +40,11 @@ def escape_md(text: str) -> str:
     return escaped
 
 
-def aggregate_thread_data(thread: list):
-    """Aggregates text, tags, media files, date, and coordinates from a thread."""
+def aggregate_thread_data(thread: Thread) -> EntryContent:
+    """Walks the thread once and gathers everything the entry needs: the
+    combined text (each tweet followed by its like/retweet counts), the
+    hashtags as tags, the media attachments, the first tweet's date, and the
+    first geotag found."""
     entry_text = ""
     entry_tags = []
     entry_media_files = []
@@ -64,10 +81,9 @@ def aggregate_thread_data(thread: list):
 
         time_diff_str = ""
         if i > 0 and first_tweet_date:
-            # 1. Calculate the time difference first
+            # Note how much later than the thread's start this tweet was sent,
+            # once the gap is big enough to be interesting.
             time_diff = current_tweet_date - first_tweet_date
-
-            # 2. Check if the difference is more than 10 minutes
             if time_diff > timedelta(minutes=10):
                 time_diff_str = f" (sent {humanize.naturaldelta(time_diff)} later)"
 
@@ -91,10 +107,18 @@ def aggregate_thread_data(thread: list):
             latitude = tweet_data["coordinates"]["coordinates"][1]
             entry_coordinate = (latitude, longitude)
 
-    return entry_text, entry_tags, entry_media_files, entry_date_time, entry_coordinate
+    return EntryContent(
+        text=entry_text,
+        tags=entry_tags,
+        media_files=entry_media_files,
+        date=entry_date_time,
+        coordinate=entry_coordinate,
+    )
 
 
-def generate_entry_title(entry_text: str, category: str, thread_length: int, media_files=None):
+def generate_entry_title(
+    entry_text: str, category: str, thread_length: int, media_files=None
+) -> str:
     """Generates the title for the Day One entry, optionally using an LLM.
 
     The LLM produces a full action phrase ("Expressed frustration at airport
@@ -123,7 +147,7 @@ def generate_entry_title(entry_text: str, category: str, thread_length: int, med
     return category
 
 
-def format_source_markdown(source: str):
+def format_source_markdown(source: Optional[str]) -> Optional[str]:
     """Converts a tweet's HTML "source" field — the client it was posted from,
     e.g. '<a href="http://twitter.com/download/android" rel="nofollow">Twitter
     for Android</a>' — into a Markdown link. Sources without a link (old tweets
@@ -140,8 +164,12 @@ def format_source_markdown(source: str):
     return text or None
 
 
-def build_entry_content(entry_text: str, first_tweet: dict, category: str, title: str):
-    """Constructs the final text content for the Day One entry."""
+def build_entry_content(
+    entry_text: str, first_tweet: dict, category: str, title: str
+) -> str:
+    """Constructs the final text content for the Day One entry: the title as a
+    heading, then the body, then — for replies — the conversation context, or
+    — for own tweets — the "Sent from <client>" footer."""
     if first_tweet.get("in_reply_to_status_id_str"):
         # Extract mentions in the order they appear, removing duplicates while preserving order
         extracted_mentions_in_order = []
@@ -169,8 +197,9 @@ def build_entry_content(entry_text: str, first_tweet: dict, category: str, title
     return entry_text
 
 
-def get_target_journal(category: str, tweet_id: str):
-    """Determines the target journal for the Day One entry."""
+def get_target_journal(category: str, tweet_id: str) -> Optional[str]:
+    """Determines the target journal for the entry, or None to skip it
+    (replies with no reply journal configured, retweets when ignored)."""
     target_journal = config.JOURNAL_NAME
     if category.startswith("Replied to"):
         if config.REPLY_JOURNAL_NAME is not None:

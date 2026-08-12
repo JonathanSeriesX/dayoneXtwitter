@@ -5,6 +5,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from models import ImportedEntry
 from thread_selection import (
     partition_threads_by_date,
     count_tweets_before,
@@ -104,7 +105,7 @@ class TestCountTweetsBefore(unittest.TestCase):
 class TestFormatReimportReport(unittest.TestCase):
 
     def _entry(self, **overrides):
-        entry = {
+        fields = {
             "tweet_id": "1234567890",
             "title": "Wrote a thread about Formula 1",
             "category": "Wrote a thread",
@@ -113,8 +114,8 @@ class TestFormatReimportReport(unittest.TestCase):
             "tweet_count": 7,
             "previous_tweet_count": 2,
         }
-        entry.update(overrides)
-        return entry
+        fields.update(overrides)
+        return ImportedEntry(**fields)
 
     def test_report_mentions_counts_dates_and_link(self):
         report = format_reimport_report(
