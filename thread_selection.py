@@ -1,13 +1,22 @@
-"""Picks which threads to import for the configured date range.
+"""Step 4 of the pipeline: pick which threads to import for the date range.
 
-A thread whose first tweet falls inside the range is imported as usual. Threads
-that *started* before the range but were extended with new tweets inside it are
-a special case: Day One can't update an existing entry, so the whole thread has
-to be imported again and the older, shorter copy deleted by hand. This module
-finds those threads and formats the reminder to delete the duplicates.
+A thread whose first tweet falls inside the configured range is imported as
+usual. Threads that *started* before the range but were extended with new
+tweets inside it are a special case: Day One can't update an existing entry,
+so the whole thread has to be imported again and the older, shorter copy
+deleted by hand. This module finds those threads, and formats + saves the
+reminder to delete the duplicates.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+from models import ImportedEntry, Thread
+
+REPORT_PATH = str(Path(__file__).resolve().parent / "threads_to_delete.txt")
 
 
 def parse_date_range(start_date_str: str, end_date_str: str):
@@ -17,7 +26,7 @@ def parse_date_range(start_date_str: str, end_date_str: str):
     return start_date, end_date
 
 
-def _thread_dates(thread: list) -> list:
+def _thread_dates(thread: Thread) -> list:
     """Returns the naive creation dates of every tweet in a thread, in thread order."""
     dates = []
     for tweet_in_thread in thread:
@@ -28,7 +37,9 @@ def _thread_dates(thread: list) -> list:
     return dates
 
 
-def partition_threads_by_date(threads: list, start_date: datetime, end_date: datetime):
+def partition_threads_by_date(
+    threads: List[Thread], start_date: datetime, end_date: datetime
+) -> Tuple[List[Thread], List[Thread]]:
     """Splits threads into the ones to import normally and the ones to re-import.
 
     Returns a tuple of (in_range, extended):
@@ -58,7 +69,7 @@ def partition_threads_by_date(threads: list, start_date: datetime, end_date: dat
     return in_range, extended
 
 
-def count_tweets_before(thread: list, start_date: datetime) -> int:
+def count_tweets_before(thread: Thread, start_date: datetime) -> int:
     """Counts the tweets of a thread posted before the range — i.e. how big the
     already-imported copy of this thread is expected to be."""
     return sum(1 for date in _thread_dates(thread) if date < start_date)
@@ -71,10 +82,11 @@ def tweet_url(tweet_id: str, username) -> str:
     return f"https://twitter.com/i/web/status/{tweet_id}"
 
 
-def format_reimport_report(reimported: list, start_date: datetime, username=None) -> str:
+def format_reimport_report(
+    reimported: List[ImportedEntry], start_date: datetime, username=None
+) -> str:
     """Formats the list of re-imported threads into a reminder to delete the
-    older duplicates. `reimported` holds the dicts returned by
-    `process_single_thread` for the extended threads."""
+    older duplicates."""
     line = "=" * 72
     header = (
         f"{line}\n"
@@ -88,20 +100,19 @@ def format_reimport_report(reimported: list, start_date: datetime, username=None
 
     blocks = []
     for i, entry in enumerate(reimported, start=1):
-        date_str = entry["date"].strftime("%d %B %Y, %H:%M")
-        previous_count = entry.get("previous_tweet_count")
+        date_str = entry.date.strftime("%d %B %Y, %H:%M")
         old_entry_str = (
-            f"≈{previous_count} tweets (those posted before "
+            f"≈{entry.previous_tweet_count} tweets (those posted before "
             f"{start_date.strftime('%d %B %Y')})"
-            if previous_count
+            if entry.previous_tweet_count
             else "the shorter, previously imported copy"
         )
         blocks.append(
-            f"\n{i}. {date_str} — “{entry['title']}”\n"
-            f"   Journal: {entry['journal']}\n"
+            f"\n{i}. {date_str} — “{entry.title}”\n"
+            f"   Journal: {entry.journal}\n"
             f"   Old entry to delete: {old_entry_str}\n"
-            f"   New entry: {entry['tweet_count']} tweets\n"
-            f"   First tweet: {tweet_url(entry['tweet_id'], username)}\n"
+            f"   New entry: {entry.tweet_count} tweets\n"
+            f"   First tweet: {tweet_url(entry.tweet_id, username)}\n"
         )
 
     footer = (
@@ -110,3 +121,11 @@ def format_reimport_report(reimported: list, start_date: datetime, username=None
     )
 
     return header + "".join(blocks) + footer
+
+
+def write_reimport_report(report: str):
+    """Prints the delete-the-duplicates reminder and saves it for later reference."""
+    print("\n" + report)
+    with open(REPORT_PATH, "w") as f:
+        f.write(report)
+    print(f"Saved this reminder to {REPORT_PATH}")
