@@ -1,0 +1,65 @@
+name: Twixodus
+options:
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+targets:
+  Twixodus:
+    type: application
+    platform: macOS
+    sources:
+      - Twixodus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.evgenii.twixodus
+        PRODUCT_NAME: Twixodus
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.lifestyle
+        INFOPLIST_KEY_NSHumanReadableCopyright: "© Evgenii Ostrovskii"
+        INFOPLIST_KEY_NSMainStoryboardFile: ""
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        ENABLE_HARDENED_RUNTIME: false
+  TwixodusTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Twixodus/Pipeline
+      - TwixodusTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.evgenii.twixodus.tests
+        GENERATE_INFOPLIST_FILE: true
+  twixodus-dump:
+    type: tool
+    platform: macOS
+    sources:
+      - Twixodus/Pipeline
+      - tools/dump
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.evgenii.twixodus.dump
+schemes:
+  Twixodus:
+    build:
+      targets:
+        Twixodus: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - TwixodusTests
+  twixodus-dump:
+    build:
+      targets:
+        twixodus-dump: all
+    run:
+      config: Debug
