@@ -143,6 +143,44 @@ class TestLoadTweetsMultipart(unittest.TestCase):
         self.assertEqual(len(tweets), 1)
 
 
+class TestCombineThreadsDepthFirst(unittest.TestCase):
+
+    def test_forked_thread_keeps_branches_contiguous(self):
+        # Shape of the blood-donation thread: a story spine with two asides.
+        #   100 → 101 → 102 ─┬→ 105 → 106   (story continuation)
+        #                    ├→ 103         (aside: cat photo)
+        #                    └→ 104         (aside: payment)
+        tweets = [
+            _archive_tweet(100),
+            _archive_tweet(101, parent_id=100),
+            _archive_tweet(102, parent_id=101),
+            _archive_tweet(103, parent_id=102),
+            _archive_tweet(104, parent_id=102),
+            _archive_tweet(105, parent_id=103),
+            _archive_tweet(106, parent_id=105),
+        ]
+        threads = combine_threads(tweets)
+        self.assertEqual(len(threads), 1)
+        self.assertEqual(
+            [t["tweet"]["id_str"] for t in threads[0]],
+            # Depth-first: the whole 103-branch first (oldest child), then 104.
+            ["100", "101", "102", "103", "105", "106", "104"],
+        )
+
+    def test_branches_ordered_by_id_at_each_fork(self):
+        tweets = [
+            _archive_tweet(200),
+            _archive_tweet(202, parent_id=200),  # younger child
+            _archive_tweet(201, parent_id=200),  # older child, listed second
+            _archive_tweet(203, parent_id=201),
+        ]
+        threads = combine_threads(tweets)
+        self.assertEqual(
+            [t["tweet"]["id_str"] for t in threads[0]],
+            ["200", "201", "203", "202"],
+        )
+
+
 class TestQuotedMyself(unittest.TestCase):
 
     @staticmethod
