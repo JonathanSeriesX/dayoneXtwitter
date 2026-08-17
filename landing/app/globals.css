@@ -191,10 +191,10 @@ body {
     float: right;
     position: relative;
     overflow: hidden;
-    width: clamp(7rem, 24vw, 11rem);
+    width: clamp(8.5rem, 29vw, 13.5rem);
     aspect-ratio: 1;
     margin: 0 0 1rem 1.5rem;
-    border-radius: 30px;
+    border-radius: 34px;
     background: var(--glass);
     border: 1px solid var(--rule);
     -webkit-backdrop-filter: blur(20px) saturate(140%);
@@ -394,45 +394,6 @@ body {
     margin-top: 0.5em;
   }
 
-  /* ---- feature rows: an emoji in a glass chip, then the words ---- */
-  .features {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .features li {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .feat-emoji {
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.1rem;
-    height: 2.1rem;
-    border-radius: 12px;
-    font-size: 1.05rem;
-    background:
-      radial-gradient(
-        circle at 30% 20%,
-        rgba(255, 255, 255, 0.5),
-        transparent 70%
-      ),
-      var(--glass);
-    border: 1px solid var(--rule);
-    box-shadow: inset 0 1px 8px rgba(15, 18, 28, 0.08);
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  .features p {
-    padding-top: 0.3em;
-  }
-
   /* ---- the manual's numbered steps ---- */
   .steps {
     display: flex;
@@ -480,15 +441,12 @@ body {
     color: var(--muted);
   }
 
-  /* ---- README screenshots — glassy frame, full width ---- */
+  /* ---- README screenshots ----
+     The PNGs carry their own transparent margin, rounded window corners and
+     drop shadow, so any frame we draw here would just double it. Bare image,
+     nothing around it. */
   .shot {
     margin-top: 16px;
-    overflow: hidden;
-    border-radius: 24px;
-    border: 1px solid var(--rule);
-    background: var(--glass);
-    box-shadow: calc(var(--lean-x) * 10) calc(8px + var(--lean-y) * 4) 24px
-      rgba(50, 42, 48, 0.08);
   }
 
   .shot img {
@@ -497,7 +455,105 @@ body {
     height: auto;
   }
 
-  /* ---- terminal snippet ---- */
+  /* ---- terminal snippet, with its copy button parked in the corner ---- */
+  .code-block {
+    position: relative;
+    margin-block: 14px;
+  }
+
+  .code-block .code-card {
+    margin-block: 0;
+    /* keep the longest command clear of the button */
+    padding-right: 3.4rem;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 11px;
+    color: var(--muted);
+    background: var(--glass-strong);
+    border: 1px solid var(--rule);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+    cursor: pointer;
+    /* legible at rest, fully lit once the block is under the pointer */
+    opacity: 0.6;
+    transition:
+      opacity 0.2s ease,
+      color 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .code-block:hover .copy-btn,
+  .copy-btn:hover,
+  .copy-btn:focus-visible {
+    opacity: 1;
+  }
+
+  .copy-btn:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  /* the confirmation: the tick lights up in the accent and the whole button
+     gives one spring-loaded pop */
+  .copy-btn[data-copied="true"] {
+    opacity: 1;
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 26%, transparent);
+    animation: copy-pop 0.4s var(--spring);
+  }
+
+  @keyframes copy-pop {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.16);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  /* the glyph swapper: one box, two layers, no reflow when they trade places */
+  .icon-swap {
+    position: relative;
+    width: 1rem;
+    height: 1rem;
+    flex: none;
+  }
+
+  .icon-swap svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease;
+  }
+
+  .icon-visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .icon-hidden {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+
   .code-card {
     overflow-x: auto;
     margin-block: 14px;
@@ -642,10 +698,9 @@ body {
 
     .hero-shot {
       margin: 0 0 0.75rem 1rem;
-      border-radius: 22px;
+      border-radius: 26px;
     }
 
-    .shot,
     .code-card {
       border-radius: 18px;
     }
@@ -671,8 +726,13 @@ body {
     }
     .stagger > *,
     .dash::details-content,
-    .chevron {
+    .chevron,
+    .icon-swap svg {
       transition: none !important;
+    }
+    /* the tick still swaps in — it just doesn't bounce */
+    .copy-btn[data-copied="true"] {
+      animation: none !important;
     }
   }
 }

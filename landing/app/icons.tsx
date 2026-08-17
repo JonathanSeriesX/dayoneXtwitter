@@ -44,6 +44,43 @@ export function CoffeeIcon() {
   );
 }
 
+/* the copy-button pair — both stay mounted and cross-fade, so they take a
+   className from the caller rather than styling themselves */
+export function CopyIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <rect x="9" y="9" width="12" height="12" rx="2.5" />
+      <path d="M15 5.5A2.5 2.5 0 0 0 12.5 3H5.5A2.5 2.5 0 0 0 3 5.5v7A2.5 2.5 0 0 0 5.5 15" />
+    </svg>
+  );
+}
+
+export function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="m4.5 12.5 5 5 10-10" />
+    </svg>
+  );
+}
+
 /* external-link arrow, shown after an outbound name */
 export function LinkArrowIcon() {
   return (

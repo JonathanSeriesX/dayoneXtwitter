@@ -4,11 +4,21 @@ import repliesShot from "@/public/pics/replies.png";
 import threadsShot from "@/public/pics/threads.png";
 import twatterShot from "@/public/pics/twatter.jpg";
 
+import { CopyButton } from "./copy-button";
 import { CoffeeIcon, DownloadIcon, GitHubIcon } from "./icons";
 import { ThemeSwitch } from "./theme-switch";
 
 const repo = "https://github.com/JonathanSeriesX/dayoneXtwitter";
 const releases = `${repo}/releases`;
+
+/* One string, so the block you read is byte-for-byte the block you copy.
+   Chained with a trailing && rather than left as three bare lines: the cask
+   install can stop for a password, and a bare newline after it would be
+   swallowed by that prompt instead of running the next command. The chain
+   also stops the moment a step fails. */
+const OLLAMA_SETUP = `brew install --cask ollama-app &&
+  ollama pull qwen3.5:9b-mlx &&
+  ollama serve`;
 
 function A({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -29,7 +39,7 @@ function A({ href, children }: { href: string; children: React.ReactNode }) {
 function Dash({
   title,
   badge,
-  open = true,
+  open = false,
   children,
 }: {
   title: React.ReactNode;
@@ -58,7 +68,7 @@ export default function Page() {
             src={twatterShot}
             alt="The bird, freed"
             fill
-            sizes="176px"
+            sizes="216px"
             priority
             className="object-cover"
           />
@@ -127,55 +137,25 @@ export default function Page() {
       </Dash>
 
       <Dash title="What's so good about it?">
-        <ul className="features">
+        <ul className="prose-list">
           <li>
-            <span className="feat-emoji" aria-hidden>
-              🗂️
-            </span>
-            <p>
-              Beautifully classifies pure tweets, threads, retweets,
-              quote-tweets, replies, etc., and acts accordingly
-            </p>
+            Beautifully classifies pure tweets, threads, retweets, quote-tweets,
+            replies, etc., and acts accordingly
           </li>
           <li>
-            <span className="feat-emoji" aria-hidden>
-              🧵
-            </span>
-            <p>
-              Handles threads <em>gracefully</em> and combines them into
-              single, cohesive Day One entries
-            </p>
+            Handles threads <em>gracefully</em> and combines them into single,
+            cohesive Day One entries
+          </li>
+          <li>Supports media attachments, hashtags, locations</li>
+          <li>Appends like/retweet count under each tweet</li>
+          <li>
+            Remembers what it already imported — run it again next year with a
+            fresh archive and only the new tweets get imported
           </li>
           <li>
-            <span className="feat-emoji" aria-hidden>
-              📎
-            </span>
-            <p>Supports media attachments, hashtags, locations</p>
-          </li>
-          <li>
-            <span className="feat-emoji" aria-hidden>
-              ❤️
-            </span>
-            <p>Appends like/retweet count under each tweet</p>
-          </li>
-          <li>
-            <span className="feat-emoji" aria-hidden>
-              🐘
-            </span>
-            <p>
-              Remembers what it already imported — run it again next year with
-              a fresh archive and only the new tweets get imported
-            </p>
-          </li>
-          <li>
-            <span className="feat-emoji" aria-hidden>
-              🤖
-            </span>
-            <p>
-              Optionally titles your entries with a local LLM via{" "}
-              <A href="https://ollama.com">Ollama</A> — “Wrote about Formula
-              1”, “Expressed frustration at airport security”, etc.
-            </p>
+            Optionally titles your entries with a local LLM via{" "}
+            <A href="https://ollama.com">Ollama</A> — “Wrote about Formula 1”,
+            “Expressed frustration at airport security”, etc.
           </li>
         </ul>
         <figure className="shot">
@@ -307,23 +287,16 @@ export default function Page() {
             </p>
           </li>
         </ol>
-        <p className="note">
-          <strong>Note:</strong> releases aren&apos;t notarized by Apple yet,
-          so the first launch needs a one-time blessing: open the app, dismiss
-          the warning, then go to{" "}
-          <strong>System Settings → Privacy &amp; Security</strong> and click{" "}
-          <strong>Open Anyway</strong>. (Or build from{" "}
-          <A href={repo}>source</A>.)
-        </p>
       </Dash>
 
       <Dash title="AI titles" badge="optional">
         <p className="sub">Execute following commands in your terminal:</p>
-        <pre className="code-card">
-          <code>{`brew install --cask ollama-app
-ollama pull qwen3.5:9b-mlx
-ollama serve`}</code>
-        </pre>
+        <div className="code-block">
+          <pre className="code-card">
+            <code>{OLLAMA_SETUP}</code>
+          </pre>
+          <CopyButton text={OLLAMA_SETUP} label="Copy commands" />
+        </div>
         <p>
           Then flip on “Title entries with a local LLM” in the app.{" "}
           <span className="mono">qwen3.5:9b-mlx</span> runs quickly on Apple
@@ -352,6 +325,10 @@ ollama serve`}</code>
           </li>
         </ul>
       </Dash>
+
+      {/* Parked, not deleted — the README still carries both lists, and this
+          is where they go if the site ever wants them back. Uncomment to
+          restore; they render below the support section, collapsed.
 
       <Dash title="Known issues" open={false}>
         <ul className="prose-list">
@@ -398,6 +375,8 @@ ollama serve`}</code>
           </li>
         </ul>
       </Dash>
+
+      */}
 
       <footer className="site-footer">
         <p>

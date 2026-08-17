@@ -45,16 +45,14 @@ By importing your Twitter archive into Day One, you can:
 8. Walk through the settings — journals, date range, whether your account still exists — and press **Start Import**. You can pause or cancel any time; the ledger remembers every imported thread, so the next run picks up where you left off.
 9. Keep the Day One app running during the import: it's what moves the staged media into the entries.
 
-> **Note:** releases aren't notarized by Apple yet, so the first launch needs a one-time blessing: open the app, dismiss the warning, then go to **System Settings → Privacy & Security** and click **Open Anyway**. (Or build from source — see below.)
-
 ### AI titles (optional)
 
 Execute following commands in your terminal:
 
 ```bash
-brew install --cask ollama-app
-ollama pull qwen3.5:9b-mlx
-ollama serve
+brew install --cask ollama-app &&
+  ollama pull qwen3.5:9b-mlx &&
+  ollama serve
 ```
 
 Then flip on “Title entries with a local LLM” in the app. `qwen3.5:9b-mlx` runs quickly on Apple Silicon Macs with 16 GB+ of memory; on smaller Macs pull `qwen3.5:4b-mlx` instead and change the model name in the app. When the model can't tell what a tweet is about, the title stays a plain “Tweeted”. Delete the model afterwards with `ollama rm qwen3.5:9b-mlx` to reclaim the storage space.
