@@ -27,6 +27,10 @@ const SHOTS: Record<string, StaticImageData> = {
    model name. Those get user-select: all, so one click takes the whole string. */
 const COPYABLE_TOKEN = 26;
 
+function isComment(line: string): boolean {
+  return /^\s*#/.test(line);
+}
+
 function text(node: ReactNode): string {
   if (typeof node === "string") return node;
   if (typeof node === "number") return String(node);
@@ -96,12 +100,27 @@ const components: Components = {
         <span className={copyable ? "mono select-all" : "mono"}>{children}</span>
       );
     }
+    /* `# comment` lines are labels for the reader, not part of the command:
+       they render muted and the copy button leaves them behind. */
+    const lines = source.replace(/\n$/, "").split("\n");
+    const command = lines.filter((line) => !isComment(line)).join("\n").trim();
     return (
       <div className="code-block">
         <pre className="code-card">
-          <code>{source}</code>
+          <code>
+            {lines.map((line, i) => {
+              const tail = i < lines.length - 1 ? "\n" : "";
+              return isComment(line) ? (
+                <span key={i} className="code-comment">
+                  {line + tail}
+                </span>
+              ) : (
+                line + tail
+              );
+            })}
+          </code>
         </pre>
-        <CopyButton text={source} label="Copy commands" />
+        <CopyButton text={command} label="Copy commands" />
       </div>
     );
   },

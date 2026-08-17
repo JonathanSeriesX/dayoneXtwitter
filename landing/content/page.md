@@ -6,7 +6,10 @@ Everything the site says lives in this file. Plain Markdown, no JSX — see
     - bullet                     dash-in-the-margin list, nests one level
     1. step                      numbered circle beside the text
     `code`                       monospace span
-    ```fenced```                 terminal card with a copy button
+    ```fenced```                 terminal card with a copy button; indent it three
+                                 spaces to keep it inside a numbered step — flush
+                                 left it cuts the list and the numbers restart;
+                                 `# comment` lines render muted and don't copy
     > quote                      dashed callout box
     ### Heading                  a named block inside a section, with a rule above it
     ![alt](pics/shot.png)        screenshot; the file must be registered in app/markdown.tsx
@@ -66,23 +69,23 @@ Then:
    metered connection. You can turn it back on once the import is done.
 5. **Install Ollama** on your Mac by executing following command in your terminal:
 
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-```
+   ```bash
+   curl -fsSL https://ollama.com/install.sh | sh
+   ```
 
 6. **Install an LLM model** to process titles for your threads.
 
-```bash
-## For ~16gb Macs:
-ollama pull qwen3.5:9b-mlx &&
-ollama serve
-```
+   ```bash
+   ## For ~16gb Macs:
+   ollama pull qwen3.5:9b-mlx &&
+   ollama serve
+   ```
 
-```bash
-## For ~32gb Macs:
-ollama pull qwen3.5:27b-mlx &&
-ollama serve
-```
+   ```bash
+   ## For ~32gb Macs:
+   ollama pull qwen3.5:27b-mlx &&
+   ollama serve
+   ```
 
 Note: when the model can't tell what a tweet is about, the title stays a plain
 “Tweeted”. Delete the model afterwards with `ollama rm qwen3.5:9b-mlx` to
@@ -90,8 +93,8 @@ reclaim the storage space.
 
 ## Usage {4 steps}
 
-1. **Download** the latest `Twixodus.zip` from
-   [Releases](https://github.com/JonathanSeriesX/twixodus/releases).
+1. **Download** the latest
+   [`Twixodus.zip`](https://github.com/JonathanSeriesX/twixodus/releases/latest/download/Twixodus.zip).
 2. **Launch Twixodus** and drop your `twitter-….zip` (or the unpacked folder)
    onto the window.
 3. **Walk through the settings** — journals, date range, whether your account
@@ -100,10 +103,6 @@ reclaim the storage space.
    left off.
 4. **Keep the Day One app running** during the import: it's what moves the staged
    media into the entries.
-
-> The build isn't notarized yet, so the very first launch needs one trip to
-> System Settings → **Privacy & Security** → **Open Anyway**. After that it opens
-> like any other app.
 
 ## 🥺👉👈
 

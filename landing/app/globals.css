@@ -599,6 +599,16 @@ body {
     letter-spacing: 0;
   }
 
+  /* `# comment` lines in a snippet: dimmed like an editor would, and
+     unselectable so a drag-copy grabs only the commands — same lines the copy
+     button leaves out (markdown.tsx). */
+  .code-card .code-comment {
+    color: var(--muted);
+    font-style: italic;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
   /* ---- glass icon segments — theme switch and footer links ---- */
   .seg {
     display: inline-flex;
@@ -644,21 +654,13 @@ body {
     height: 1rem;
   }
 
-  /* ---- footer ---- */
+  /* ---- footer — just the theme switch, parked in the right corner ---- */
   .site-footer {
     margin-top: 36px;
     padding-top: 20px;
     border-top: 1px solid var(--rule);
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .site-footer p {
-    color: var(--muted);
-    font-size: 12.5px;
+    justify-content: flex-end;
   }
 
   /* ---- entrance stagger — the page settles in like the panels used to ---- */

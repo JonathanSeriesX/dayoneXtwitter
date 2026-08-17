@@ -3,12 +3,14 @@ import Image from "next/image";
 import twatterShot from "@/public/pics/twatter.jpg";
 
 import { intro, sections } from "./content";
-import { CoffeeIcon, DownloadIcon, GitHubIcon } from "./icons";
+import { DownloadIcon, GitHubIcon } from "./icons";
 import { Markdown } from "./markdown";
 import { ThemeSwitch } from "./theme-switch";
 
 const repo = "https://github.com/JonathanSeriesX/twixodus";
-const releases = `${repo}/releases`;
+/* Always the newest release's zip — release.yml uploads a stable-named copy of
+   the versioned asset precisely so this URL never goes stale. */
+const download = `${repo}/releases/latest/download/Twixodus.zip`;
 
 /* One collapsible glass section. Every section on this page is a `##` heading in
    content/page.md, folded into one of these — the copy lives there, the chrome
@@ -55,7 +57,7 @@ export default function Page() {
           <Markdown>{intro}</Markdown>
         </div>
         <div className="cta-row">
-          <a className="cta" href={releases} target="_blank" rel="noreferrer">
+          <a className="cta" href={download}>
             <DownloadIcon />
             Download Twixodus.zip
           </a>
@@ -76,46 +78,7 @@ export default function Page() {
       ))}
 
       <footer className="site-footer">
-        <p>
-          Twixodus is open source — the code, the issues and the releases all
-          live in{" "}
-          <a className="link" href={repo} target="_blank" rel="noreferrer">
-            the repo
-          </a>
-          .
-        </p>
-        <div className="flex items-center gap-3">
-          <nav className="seg" aria-label="Links">
-            <a
-              href={repo}
-              aria-label="GitHub"
-              title="GitHub"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <GitHubIcon />
-            </a>
-            <a
-              href={releases}
-              aria-label="Releases"
-              title="Releases"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <DownloadIcon />
-            </a>
-            <a
-              href="https://coff.ee/jonathunky"
-              aria-label="Buy me a coffee"
-              title="Buy me a coffee"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <CoffeeIcon />
-            </a>
-          </nav>
-          <ThemeSwitch />
-        </div>
+        <ThemeSwitch />
       </footer>
     </div>
   );
