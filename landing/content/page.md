@@ -87,9 +87,15 @@ Then:
    ollama serve
    ```
 
+![Twitter threads titled with an LLM](pics/llm_titles.png)
+
 Note: when the model can't tell what a tweet is about, the title stays a plain
-“Tweeted”. Delete the model afterwards with `ollama rm qwen3.5:9b-mlx` to
-reclaim the storage space.
+“Tweeted”. Delete the model afterwards to
+reclaim the storage space:
+
+```bash
+ollama rm qwen3.5:9b-mlx
+```
 
 ## Usage {4 steps}
 

@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import repliesShot from "@/public/pics/replies.png";
-import threadsShot from "@/public/pics/threads.png";
+import llmTitlesShot from "@/public/pics/llm_titles.avif";
+import repliesShot from "@/public/pics/replies.avif";
+import threadsShot from "@/public/pics/threads.avif";
 
 import { CopyButton } from "./copy-button";
 
@@ -16,11 +17,22 @@ import { CopyButton } from "./copy-button";
 
 /* Screenshots are imported rather than looked up by path at runtime: the static
    import is what hands next/image the intrinsic size, so the page doesn't jump
-   while the PNG loads. A filename the Markdown names but this map doesn't know
-   renders nothing — better a gap than a broken-image icon. */
-const SHOTS: Record<string, StaticImageData> = {
-  "pics/threads.png": threadsShot,
-  "pics/replies.png": repliesShot,
+   while the image loads. A filename the Markdown names but this map doesn't
+   know renders nothing — better a gap than a broken-image icon.
+
+   The Markdown keeps naming the canonical PNGs; each entry serves that PNG's
+   lossless AVIF twin (same pixels, verified, ~25–40% smaller), which lives
+   next to it in public/pics. Dimensions are spelled out because the bundler
+   can't read them from AVIF and stamps a 100×100 placeholder, which would
+   bring back the layout jump. A new screenshot needs all four: the PNG, an
+   `avifenc --lossless` encode, and its line here with the PNG's real size. */
+const SHOTS: Record<
+  string,
+  { src: StaticImageData; width: number; height: number }
+> = {
+  "pics/threads.png": { src: threadsShot, width: 2300, height: 1810 },
+  "pics/replies.png": { src: repliesShot, width: 2570, height: 1752 },
+  "pics/llm_titles.png": { src: llmTitlesShot, width: 2624, height: 1754 },
 };
 
 /* Long enough that you'd copy it rather than read it — a wallet address, not a
@@ -132,7 +144,12 @@ const components: Components = {
     if (!shot) return null;
     return (
       <figure className="shot">
-        <Image src={shot} alt={alt ?? ""} />
+        <Image
+          src={shot.src}
+          width={shot.width}
+          height={shot.height}
+          alt={alt ?? ""}
+        />
       </figure>
     );
   },

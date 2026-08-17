@@ -2,69 +2,15 @@
 
 The **ultimate** tool to seamlessly import your Twitter archive into the [Day One journaling app](https://dayoneapp.com).
 
-<img src="pics/twatter.jpg" alt="Intro" width="400"/>
+Works on macOS Sequoia or newer.
 
-## What for?
-
-By importing your Twitter archive into Day One, you can:
-
-- Browse your entire tweet history offline with lightning-fast random access
-- Rediscover what you posted “on this day“ in past years—like [Timehop](https://www.timehop.com), but nicer and with no limitations
-- Browse all your tweeted photos and videos in a sleek, organized gallery
-- Perform full-text searches that actually work
-  - Easily purge any unwanted [kompromat](https://en.wikipedia.org/wiki/Kompromat) from your old tweets
-
-<img src="pics/threads.png" alt="Intro" width="600"/>
-
-## What's so good about it?
-
-- Beautifully classifies pure tweets, threads, retweets, quote-tweets, replies, etc., and acts accordingly
-- Handles threads _gracefully_ and combines them into single, cohesive Day One entries
-- Supports media attachments, hashtags, locations
-- Appends like/retweet count under each tweet
-- Remembers what it already imported — run it again next year with a fresh archive and only the new tweets get imported
-- Optionally titles your entries with a local LLM via [Ollama](https://ollama.com) — “Wrote about Formula 1”, “Expressed frustration at airport security”, etc.
-
-<img src="pics/replies.png" alt="Intro" width="600"/>
-
-## Requirements
-
-- macOS Sequoia or newer. If you don't have a Mac, find a friend who does or spin up a virtual machine.
-- The [Day One app](https://apps.apple.com/tr/app/day-one/id1055511498?mt=12) with its [command-line tool](https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/) installed
-- Day One Silver subscription for more than one attachment per entry (free trial available, feel free to cancel it right after the import)
-
-## Usage
-
-1. **Download your Twitter data** — request your archive [here](https://x.com/settings/download_your_data).
-2. **Install Day One and its CLI**, open the app, and (optionally) sign in.
-3. **Create the journals**: go to [dayone://preferences](dayone://preferences) → **Journals** and add `Tweets` (and `Twitter Replies` if you want replies too — don't forget to disable the "Show in ..." options for that one).
-4. (Optional) **Pause sync** in Day One preferences → **Sync** if you're on a metered connection.
-5. (Optional) **Setup Ollama** on your Mac (see the next section for more details)
-6. **Download** the latest `Twixodus.zip` from [Releases](../../releases).
-7. **Launch Twixodus** and drop your `twitter-….zip` (or the unpacked folder) onto the window.
-8. Walk through the settings — journals, date range, whether your account still exists — and press **Start Import**. You can pause or cancel any time; the ledger remembers every imported thread, so the next run picks up where you left off.
-9. Keep the Day One app running during the import: it's what moves the staged media into the entries.
-
-### AI titles (optional)
-
-Execute following commands in your terminal:
-
-```bash
-brew install --cask ollama-app &&
-  ollama pull qwen3.5:9b-mlx &&
-  ollama serve
-```
-
-Then flip on “Title entries with a local LLM” in the app. `qwen3.5:9b-mlx` runs quickly on Apple Silicon Macs with 16 GB+ of memory; on smaller Macs pull `qwen3.5:4b-mlx` instead and change the model name in the app. When the model can't tell what a tweet is about, the title stays a plain “Tweeted”. Delete the model afterwards with `ollama rm qwen3.5:9b-mlx` to reclaim the storage space.
-
----
-
-### 🥺👉👈
+## 🥺👉👈
 
 If you found this useful, please consider supporting me:
 
-- [Buy me a coffee](https://coff.ee/jonathunky)
-- USDT TRC20: `TKa6wmqpLvMQwacU1wnPgFWZHFaDRV9jFs`
+- [Buy me a nice latte](https://ko-fi.com/jonathanx64)
+- USDT TRC20: `TNhgaQw2n9WxsddLhaXnx1HvEEYsScmsrW`
+- [Revolut](https://revolut.me/evgenii69)
 
 ## Known issues
 
@@ -75,6 +21,5 @@ If you found this useful, please consider supporting me:
 
 ## Plans (if the project gains traction and/or I have lots of spare time)
 
-- Signed & notarized downloads
 - Better LLM-based title generation
-- Support for grouping relevant successive tweets into a single post (relevant for tweets posted before 2017, as there were no threads back then)
+- Support for grouping relevant successive single tweets into a singular post, which sounds impossible tbh (relevant for tweets posted before 2017, as there were no threads back then)
