@@ -37,7 +37,7 @@ final class AppSettings: ObservableObject {
 
     // MARK: - LLM titles
 
-    @AppStorage("llmTitlesEnabled") var llmTitlesEnabled = false
+    @AppStorage("llmTitlesEnabled") var llmTitlesEnabled = true
     @AppStorage("llmTitlesForSingleTweets") var llmTitlesForSingleTweets = true
     @AppStorage("llmMaxImages") var llmMaxImages = 26
     @AppStorage("ollamaHost") var ollamaHost = "http://localhost:11434"

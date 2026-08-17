@@ -28,7 +28,7 @@ struct DropStepView: View {
 
             Spacer()
 
-            Text("Request your archive at x.com → Settings → Download an archive of your data.")
+            Text("Request your archive [here](https://x.com/settings/download_your_data) — Settings → Download an archive of your data.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 20)

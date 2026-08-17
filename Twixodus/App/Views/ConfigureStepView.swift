@@ -128,7 +128,7 @@ struct ConfigureStepView: View {
 
     private var optionsSection: some View {
         Section("Options") {
-            Toggle("Import in random order", isOn: $settings.shuffleMode)
+            Toggle("Import in random order (useful for previewing results)", isOn: $settings.shuffleMode)
             Toggle("Skip retweets", isOn: $settings.ignoreRetweets)
             Toggle("End entries with “Sent from <client>”", isOn: $settings.showTweetSource)
             Toggle("Limit threads per run", isOn: $settings.limitThreads)
@@ -171,13 +171,7 @@ struct ConfigureStepView: View {
 
     private var dayOneSection: some View {
         Section("Day One") {
-            if let binary = model.dayOneBinary {
-                LabeledContent("Command-line tool") {
-                    Text(binary)
-                        .font(.system(.callout, design: .monospaced))
-                        .textSelection(.enabled)
-                }
-            } else {
+            if model.dayOneBinary == nil {
                 VStack(alignment: .leading, spacing: 6) {
                     Label("The Day One CLI isn't installed", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
