@@ -1,11 +1,12 @@
 // twixodus-dump: runs pipeline steps 1–5b headlessly (no Day One, no LLM) and
-// prints every composed entry as JSON, keyed by root tweet ID. Its whole
-// purpose is the equivalence check against the legacy Python pipeline:
+// prints every composed entry as JSON, keyed by root tweet ID:
 //
 //     twixodus-dump <archive folder> [username|-] > swift.json
 //
-// The Python counterpart lives in legacy/; diffing the two outputs over the
-// full real archive is how the port is verified.
+// It was built to verify the Swift port against the original Python pipeline
+// (byte-identical over the full real archive before the Python code was
+// deleted). It remains useful as a golden-file harness: dump once, change
+// the pipeline, dump again, diff.
 
 import Foundation
 
