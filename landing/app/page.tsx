@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 import twatterShot from "@/public/pics/twatter.jpg";
 
@@ -11,6 +12,24 @@ const repo = "https://github.com/JonathanSeriesX/twixodus";
 /* Always the newest release's zip — release.yml uploads a stable-named copy of
    the versioned asset precisely so this URL never goes stale. */
 const download = `${repo}/releases/latest/download/Twixodus.zip`;
+
+/* GitHub fills a new issue from the query string. Prefilled with the handful of
+   things that actually narrow an import bug down, so a report doesn't have to
+   start with a round of questions. */
+const newIssue = `${repo}/issues/new?${new URLSearchParams({
+  title: "Import didn't work",
+  body: `**What happened?**
+
+**Which step were you on?**
+
+---
+
+- macOS version:
+- Twixodus version:
+- Day One version:
+- Roughly how many tweets:
+`,
+})}`;
 
 /* One collapsible glass section. Every section on this page is a `##` heading in
    content/page.md, folded into one of these — the copy lives there, the chrome
@@ -57,14 +76,19 @@ export default function Page() {
           <Markdown>{intro}</Markdown>
         </div>
         <div className="cta-row">
-          <a className="cta" href={download}>
+          <Link className="cta" href={download}>
             <DownloadIcon />
             Download Twixodus.zip
-          </a>
-          <a className="cta ghost" href={repo} target="_blank" rel="noreferrer">
+          </Link>
+          <Link
+            className="cta ghost"
+            href={repo}
+            target="_blank"
+            rel="noreferrer"
+          >
             <GitHubIcon />
             Source
-          </a>
+          </Link>
         </div>
         <p className="hero-meta">
           native macOS app · your data never leaves your Mac
@@ -78,6 +102,18 @@ export default function Page() {
       ))}
 
       <footer className="site-footer">
+        <p>
+          The import did not work? Raise an issue{" "}
+          <Link
+            className="link"
+            href={newIssue}
+            target="_blank"
+            rel="noreferrer"
+          >
+            here
+          </Link>
+          .
+        </p>
         <ThemeSwitch />
       </footer>
     </div>

@@ -1,5 +1,9 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, {
+  defaultUrlTransform,
+  type Components,
+} from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { CopyButton } from "./copy-button";
@@ -47,17 +51,24 @@ const components: Components = {
      because each one is drawn as a circle out in the margin. */
   ol: ({ children }) => <ol className="steps">{children}</ol>,
 
-  a: ({ href, children }) => (
-    <a
-      className="link"
-      href={href}
-      {...(href?.startsWith("http")
-        ? { target: "_blank", rel: "noreferrer" }
-        : {})}
-    >
-      {children}
-    </a>
-  ),
+  /* Every link in the copy leaves this site — the http ones and the lone
+     dayone:// scheme alike — so Link resolves each to a plain anchor with no
+     prefetch. Link needs a defined href, which `[text]()` wouldn't give it,
+     hence the guard; an anchor without href was never a link anyway. */
+  a: ({ href, children }) =>
+    href ? (
+      <Link
+        className="link"
+        href={href}
+        {...(href.startsWith("http")
+          ? { target: "_blank", rel: "noreferrer" }
+          : {})}
+      >
+        {children}
+      </Link>
+    ) : (
+      <span className="link">{children}</span>
+    ),
 
   /* > quote — the notarization confession, and anything else set aside */
   blockquote: ({ children }) => <div className="note">{children}</div>,
@@ -108,9 +119,22 @@ const components: Components = {
   img: ({ src, alt }) => <img src={`/${src}`} alt={alt} loading="lazy" className="shot" />,
 };
 
+/* react-markdown defends against javascript: URLs by blanking every scheme it
+   doesn't recognise — which quietly reduced step 3's dayone://preferences to
+   href="", a link that just reloaded the page. The copy here is ours rather
+   than anything a stranger submitted, so Day One's scheme is waved through and
+   everything else still goes past the default sanitiser. */
+function urlTransform(url: string): string {
+  return url.startsWith("dayone:") ? url : defaultUrlTransform(url);
+}
+
 export function Markdown({ children }: { children: string }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={components}
+      urlTransform={urlTransform}
+    >
       {children}
     </ReactMarkdown>
   );

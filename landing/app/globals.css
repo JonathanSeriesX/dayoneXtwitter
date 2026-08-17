@@ -657,7 +657,17 @@ body {
     padding-top: 20px;
     border-top: 1px solid var(--rule);
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    /* on a narrow screen the note wraps above the picker rather than
+       squeezing it */
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .site-footer p {
+    color: var(--muted);
+    font-size: 12.5px;
   }
 
   /* ---- entrance stagger — the page settles in like the panels used to ---- */
