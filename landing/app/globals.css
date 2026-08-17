@@ -1,0 +1,678 @@
+@import "tailwindcss";
+
+/* Theme classes are set by next-themes (light / dark / black), so the dark
+   variant follows the class, not the media query. */
+@custom-variant dark (&:where(.dark, .black, .dark *, .black *));
+
+/* Liquid-glass skin: edge-bench's compact one-column structure wearing the
+   full liquid-folio treatment — warm paper, drifting ambient glow, grain,
+   translucent blurred cards whose shadows lean away from a pointer-tracked
+   virtual light. */
+:root {
+  --paper: #f7f4ef;
+  --ink: #1d1a16;
+  --muted: #7b746f;
+  --rule: #1d1a161f;
+  --accent: #2193e6;
+  --glow-a: #2193e630;
+  --glow-b: #7a58d040;
+  --glass: rgba(252, 250, 246, 0.55);
+  --glass-strong: rgba(252, 250, 246, 0.75);
+  --thumb: rgba(255, 255, 255, 0.92);
+
+  /* virtual light: --mxn/--myn are written by liquid-pointer.tsx, [-1, 1]
+     from the viewport centre, smoothed. Every shadow below leans away from
+     the pointer through these two lengths; with no JS (or reduced motion)
+     they default to 0 and every shadow is exactly what it always was. */
+  --lean-x: calc(var(--mxn, 0) * -1px);
+  --lean-y: calc(var(--myn, 0) * -1px);
+  /* specular glint that tracks the pointer across a hovered card */
+  --sheen: rgba(255, 255, 255, 0.3);
+  --card-shadow:
+    calc(var(--lean-x) * 22) calc(24px + var(--lean-y) * 10) 48px
+      rgba(50, 42, 48, 0.13),
+    calc(var(--lean-x) * 4) calc(2px + var(--lean-y) * 2) 10px
+      rgba(50, 42, 48, 0.06);
+  --spring: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Static on purpose: iOS 26 re-adapts its glass chrome whenever
+     color-scheme CHANGES at runtime. Declared once, there is nothing to
+     re-adapt when the site theme toggles. */
+  color-scheme: light dark;
+}
+
+html.dark {
+  --paper: #131110;
+  --ink: #eceae7;
+  --muted: #b3b3b3;
+  --rule: #eceae724;
+  --accent: #4fc3ff;
+  --glow-a: #4fc3ff38;
+  --glow-b: #a78bfa45;
+  --glass: rgba(36, 32, 30, 0.5);
+  --glass-strong: rgba(36, 32, 30, 0.72);
+  --thumb: rgba(66, 60, 56, 0.95);
+  --sheen: rgba(255, 255, 255, 0.11);
+  --card-shadow: calc(var(--lean-x) * 22) calc(24px + var(--lean-y) * 10) 50px
+    rgba(0, 0, 0, 0.5);
+}
+
+/* Pitch Black: everything from dark, on a true-black canvas. */
+html.black {
+  --paper: #000;
+  --ink: #eceae7;
+  --muted: #b3b3b3;
+  --rule: #eceae724;
+  --accent: #4fc3ff;
+  --glow-a: #4fc3ff2b;
+  --glow-b: #a78bfa38;
+  --glass: rgba(24, 21, 20, 0.55);
+  --glass-strong: rgba(24, 21, 20, 0.75);
+  --thumb: rgba(52, 47, 44, 0.95);
+  --sheen: rgba(255, 255, 255, 0.09);
+  --card-shadow: calc(var(--lean-x) * 22) calc(24px + var(--lean-y) * 10) 50px
+    rgba(0, 0, 0, 0.65);
+}
+
+@theme inline {
+  /* --font-body is defined by whichever face app/layout.tsx loads */
+  --font-sans:
+    var(--font-body), -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+    Helvetica, Arial, sans-serif;
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+}
+
+html {
+  background: var(--paper);
+  transition: background-color 0.2s ease;
+}
+
+/* Suppress the fade during instant theme swaps (iOS path). */
+html.no-theme-fade,
+html.no-theme-fade * {
+  transition: none !important;
+}
+
+/* ambient glow behind everything — slowly drifting */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -10%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(50% 40% at 15% 2%, var(--glow-a), transparent 70%),
+    radial-gradient(42% 34% at 85% 6%, var(--glow-b), transparent 70%),
+    radial-gradient(45% 38% at 75% 96%, var(--glow-a), transparent 72%);
+  animation: glow-drift 38s ease-in-out infinite alternate;
+}
+
+@keyframes glow-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-3%, 2.5%, 0) scale(1.12);
+  }
+}
+
+body {
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  font-weight: 400;
+}
+
+/* layered so component styles (.link:hover) can override: un-layered rules
+   would beat everything inside @layer components */
+@layer base {
+  a {
+    color: inherit;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+@layer components {
+  .link {
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    transition:
+      text-decoration-color 150ms ease,
+      color 150ms ease;
+  }
+
+  .link:hover {
+    color: var(--accent);
+    text-decoration-color: var(--accent);
+  }
+
+  .mono {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+    font-size: 0.85em;
+    letter-spacing: 0;
+  }
+
+  /* ---- one column, edge-bench proportions ---- */
+  .wrap {
+    max-width: 46rem;
+    margin-inline: auto;
+    padding: 3rem 1.25rem 4rem;
+  }
+
+  /* ---- hero ---- */
+  .hero h1 {
+    font-size: 34px;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    margin-bottom: 0.6rem;
+  }
+
+  .hero-tag {
+    font-size: 17px;
+    max-width: 34ch;
+  }
+
+  /* the meme, floated so the pitch wraps around it — glassy, cornered */
+  .hero-shot {
+    float: right;
+    position: relative;
+    overflow: hidden;
+    width: clamp(7rem, 24vw, 11rem);
+    aspect-ratio: 1;
+    margin: 0 0 1rem 1.5rem;
+    border-radius: 30px;
+    background: var(--glass);
+    border: 1px solid var(--rule);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+    box-shadow:
+      inset 0 1px 12px rgba(15, 18, 28, 0.08),
+      calc(var(--lean-x) * 10) calc(8px + var(--lean-y) * 4) 24px
+        rgba(50, 42, 48, 0.1);
+  }
+
+  .hero-meta {
+    margin-top: 0.9rem;
+    color: var(--muted);
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0;
+  }
+
+  .cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1.2rem;
+  }
+
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55em;
+    padding: 0.55rem 1.15rem;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--accent) 11%, var(--glass));
+    border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+    text-decoration: none;
+    font-weight: 500;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 16%, transparent);
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.25s var(--spring),
+      box-shadow 0.25s ease;
+  }
+
+  .cta:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  /* the quieter sibling */
+  .cta.ghost {
+    background: var(--glass);
+    border-color: var(--rule);
+    box-shadow: 0 2px 10px rgba(50, 42, 48, 0.07);
+  }
+
+  .cta svg {
+    width: 1.05em;
+    height: 1.05em;
+  }
+
+  /* ---- collapsible glass sections ---- */
+  .dash {
+    margin-top: 20px;
+    border-radius: 30px;
+    background: var(--glass);
+    border: 1px solid var(--rule);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    backdrop-filter: blur(22px) saturate(140%);
+    /* the inset streak slides toward the light, the drop shadow away */
+    box-shadow:
+      inset calc(var(--lean-x) * -2) 1px 0 rgba(255, 255, 255, 0.16),
+      var(--card-shadow);
+    overflow: clip;
+  }
+
+  /* pointer-following glint, only where a hover pointer exists. --gx/--gy
+     are the pointer inside the section, 0–100 (liquid-pointer.tsx); the
+     defaults park the glint off-card, so without JS this changes nothing. */
+  @media (hover: hover) {
+    .dash:hover {
+      background:
+        radial-gradient(
+          14rem circle at calc(var(--gx, 50) * 1%) calc(var(--gy, -400) * 1%),
+          var(--sheen),
+          transparent 65%
+        ),
+        var(--glass);
+    }
+  }
+
+  .dash > summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 17px 24px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .dash > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .dash-title {
+    font-size: 16.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .badge {
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+    font-size: 11px;
+    letter-spacing: 0.01em;
+    color: color-mix(in srgb, var(--accent) 80%, var(--ink));
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+
+  /* closed: points right; open: points down */
+  .chevron {
+    margin-left: auto;
+    width: 9px;
+    height: 9px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(-45deg);
+    transition: transform 0.3s var(--spring);
+    flex: none;
+  }
+
+  .dash[open] > summary .chevron {
+    transform: rotate(45deg);
+  }
+
+  .dash-body {
+    padding: 2px 24px 24px;
+  }
+
+  .dash-body > .sub {
+    margin-bottom: 14px;
+    color: var(--muted);
+  }
+
+  /* smooth expand where the browser supports it; instant elsewhere */
+  .dash::details-content {
+    opacity: 1;
+    block-size: auto;
+    transition:
+      block-size 0.4s var(--spring),
+      content-visibility 0.4s allow-discrete,
+      opacity 0.3s ease;
+  }
+
+  .dash:not([open])::details-content {
+    opacity: 0;
+    block-size: 0;
+    overflow: clip;
+  }
+
+  /* ---- prose bullets — an accent dash hanging in the margin ---- */
+  .prose-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    padding-left: 1.5em;
+  }
+
+  .prose-list li {
+    position: relative;
+  }
+
+  .prose-list li::before {
+    content: "\2014";
+    position: absolute;
+    left: -1.5em;
+    color: var(--accent);
+  }
+
+  .prose-list ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    padding-left: 1.5em;
+    margin-top: 0.5em;
+  }
+
+  /* ---- feature rows: an emoji in a glass chip, then the words ---- */
+  .features {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .features li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .feat-emoji {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 12px;
+    font-size: 1.05rem;
+    background:
+      radial-gradient(
+        circle at 30% 20%,
+        rgba(255, 255, 255, 0.5),
+        transparent 70%
+      ),
+      var(--glass);
+    border: 1px solid var(--rule);
+    box-shadow: inset 0 1px 8px rgba(15, 18, 28, 0.08);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .features p {
+    padding-top: 0.3em;
+  }
+
+  /* ---- the manual's numbered steps ---- */
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .steps li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .step-num {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    margin-top: 0.1em;
+    border-radius: 9999px;
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+    font-size: 11.5px;
+    color: color-mix(in srgb, var(--accent) 80%, var(--ink));
+    background: color-mix(in srgb, var(--accent) 10%, var(--glass));
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .steps strong {
+    font-weight: 600;
+  }
+
+  /* ---- the notarization confession ---- */
+  .note {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 20px;
+    border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--rule));
+    background: color-mix(in srgb, var(--glass) 55%, transparent);
+    color: var(--muted);
+  }
+
+  /* ---- README screenshots — glassy frame, full width ---- */
+  .shot {
+    margin-top: 16px;
+    overflow: hidden;
+    border-radius: 24px;
+    border: 1px solid var(--rule);
+    background: var(--glass);
+    box-shadow: calc(var(--lean-x) * 10) calc(8px + var(--lean-y) * 4) 24px
+      rgba(50, 42, 48, 0.08);
+  }
+
+  .shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* ---- terminal snippet ---- */
+  .code-card {
+    overflow-x: auto;
+    margin-block: 14px;
+    padding: 12px 16px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--ink) 5%, var(--glass));
+    border: 1px solid var(--rule);
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    letter-spacing: 0;
+  }
+
+  /* ---- glass icon segments — theme switch and footer links ---- */
+  .seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 9999px;
+    background: var(--glass);
+    border: 1px solid var(--rule);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+  }
+
+  .seg button,
+  .seg a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 9999px;
+    color: var(--muted);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .seg button:hover,
+  .seg a:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--thumb) 55%, transparent);
+  }
+
+  .seg button[data-active="true"] {
+    background: var(--thumb);
+    color: var(--accent);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+  }
+
+  .seg svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  /* ---- footer ---- */
+  .site-footer {
+    margin-top: 36px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .site-footer p {
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+
+  /* ---- entrance stagger — the page settles in like the panels used to ---- */
+  .stagger > * {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+    transition:
+      opacity 0.6s var(--spring),
+      transform 0.6s var(--spring),
+      filter 0.6s ease;
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(12px);
+      filter: blur(3px);
+    }
+  }
+
+  .stagger > :nth-child(1) {
+    transition-delay: 40ms;
+  }
+  .stagger > :nth-child(2) {
+    transition-delay: 120ms;
+  }
+  .stagger > :nth-child(3) {
+    transition-delay: 200ms;
+  }
+  .stagger > :nth-child(4) {
+    transition-delay: 280ms;
+  }
+  .stagger > :nth-child(5) {
+    transition-delay: 360ms;
+  }
+  .stagger > :nth-child(6) {
+    transition-delay: 440ms;
+  }
+  .stagger > :nth-child(7) {
+    transition-delay: 520ms;
+  }
+  .stagger > :nth-child(8) {
+    transition-delay: 600ms;
+  }
+  /* anything past the ninth block lands with the ninth rather than trailing
+     off — a section that deep is scrolled into view by then anyway */
+  .stagger > :nth-child(n + 9) {
+    transition-delay: 680ms;
+  }
+
+  /* phone-width compaction */
+  @media (width < 40rem) {
+    .wrap {
+      padding-top: 2rem;
+    }
+
+    .dash {
+      border-radius: 24px;
+    }
+
+    .dash > summary {
+      padding: 15px 18px;
+    }
+
+    .dash-body {
+      padding: 2px 18px 18px;
+    }
+
+    .hero-shot {
+      margin: 0 0 0.75rem 1rem;
+      border-radius: 22px;
+    }
+
+    .shot,
+    .code-card {
+      border-radius: 18px;
+    }
+  }
+
+  /* grain overlay */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    opacity: 0.55;
+    image-rendering: pixelated;
+    background-repeat: repeat;
+    background-size: 180px 180px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body::before {
+      animation: none !important;
+    }
+    .stagger > *,
+    .dash::details-content,
+    .chevron {
+      transition: none !important;
+    }
+  }
+}

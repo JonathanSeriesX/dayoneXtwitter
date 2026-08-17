@@ -1,0 +1,11 @@
+minimumReleaseAge: 240
+allowBuilds:
+  "@tailwindcss/oxide": true
+  sharp: true
+  unrs-resolver: true
+# eslint-config-next's inner plugins (react, import, jsx-a11y) don't declare
+# eslint 10 in peers yet; @eslint/compat's fixup in eslint.config.mjs bridges
+# the runtime gap. Remove when the plugins catch up.
+peerDependencyRules:
+  allowedVersions:
+    eslint: "10"
