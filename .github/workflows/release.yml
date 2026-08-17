@@ -151,7 +151,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          # Second, stable-named copy: the landing page's download button points
+          # at releases/latest/download/Twixodus.zip, which only resolves if
+          # every release carries an asset by exactly that name.
+          cp "dist/Twixodus-$VERSION.zip" dist/Twixodus.zip
           gh release create "$GITHUB_REF_NAME" \
             "dist/Twixodus-$VERSION.zip" \
+            dist/Twixodus.zip \
             --title "Twixodus $VERSION" \
             --generate-notes

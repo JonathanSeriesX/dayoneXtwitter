@@ -48,6 +48,9 @@ final class AppModel: ObservableObject {
     @Published var activity = ""
     @Published var logLines: [LogLine] = []
     @Published var runResult: ImportRunResult?
+    /// How many threads the ledger already records — read once per event
+    /// (archive loaded, run finished), not on every render.
+    @Published var alreadyImportedCount = 0
 
     let settings = AppSettings()
     let control = ImportControl()
@@ -82,6 +85,9 @@ final class AppModel: ObservableObject {
                     root: root,
                     stage: { stage in
                         Task { @MainActor [weak self] in self?.loadStage = stage }
+                    },
+                    log: { message in
+                        Task { @MainActor [weak self] in self?.appendLog(message, .info) }
                     }
                 )
                 await MainActor.run { [weak self] in
@@ -101,7 +107,7 @@ final class AppModel: ObservableObject {
         archive = loaded
         categoryCache = ImportEngine.CategoryCache()
         runResult = nil
-        logLines = []
+        refreshAlreadyImportedCount()
 
         // A fresh archive knows the account's username — prefill it, the user
         // can still edit or clear it.
@@ -116,6 +122,12 @@ final class AppModel: ObservableObject {
 
     var ledger: ImportLedger? {
         archive.map { ImportLedger(accountId: $0.accountId) }
+    }
+
+    /// Re-reads the ledger size. Cheap enough per call, but the result is
+    /// cached in alreadyImportedCount so SwiftUI bodies never touch the file.
+    func refreshAlreadyImportedCount() {
+        alreadyImportedCount = ledger?.loadProcessedIDs().count ?? 0
     }
 
     func startImport() {
@@ -133,7 +145,7 @@ final class AppModel: ObservableObject {
             config: config,
             context: context,
             ledger: ImportLedger(accountId: archive.accountId),
-            dayOne: DayOneCLI(binaryPath: binary, log: { log($0, .info) }),
+            dayOne: DayOneCLI(binaryPath: binary, log: log),
             ollama: config.processTitlesWithLLM
                 ? OllamaClient(settings: .init(config: config), log: { log($0, .warning) })
                 : nil,
@@ -160,7 +172,7 @@ final class AppModel: ObservableObject {
         activity = "Selecting threads…"
         logLines = []
         runResult = nil
-        control.setPaused(false)
+        control.reset()
         step = .importing
 
         let threads = archive.threads
@@ -178,9 +190,10 @@ final class AppModel: ObservableObject {
         importTask = nil
         isImporting = false
         isPaused = false
-        control.setPaused(false)
+        control.reset()
         runResult = result
         saveReportIfAny(result)
+        refreshAlreadyImportedCount()
         step = .done
     }
 
@@ -193,6 +206,9 @@ final class AppModel: ObservableObject {
     }
 
     func cancelImport() {
+        // The engine runs on a detached task, which task cancellation can't
+        // reach — the lock-backed flag is what actually stops the loop.
+        control.cancel()
         importTask?.cancel()
         control.setPaused(false)
         isPaused = false

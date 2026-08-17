@@ -40,13 +40,17 @@ struct DoneStepView: View {
 
         Image(systemName: symbolName)
             .font(.system(size: 42))
-            .foregroundStyle(result?.wasCancelled == true ? AnyShapeStyle(.orange) : AnyShapeStyle(.green))
+            .foregroundStyle(symbolStyle)
 
         Text(headline)
             .font(.title2.weight(.semibold))
 
         if let result {
             VStack(spacing: 3) {
+                if result.failedCount > 0 {
+                    Text("\(result.failedCount) thread\(result.failedCount == 1 ? "" : "s") failed to save — make sure the Day One app is running and the journal names exist. Failed threads aren't marked as done, so the next run retries them.")
+                        .foregroundStyle(.red)
+                }
                 if result.skippedAlreadyImported > 0 {
                     Text("\(result.skippedAlreadyImported) threads were already in Day One from earlier runs and were skipped.")
                 }
@@ -64,12 +68,24 @@ struct DoneStepView: View {
     }
 
     private var symbolName: String {
-        if model.runResult?.wasCancelled == true { return "stop.circle" }
+        guard let result = model.runResult else { return "checkmark.circle" }
+        if result.wasCancelled { return "stop.circle" }
+        if result.failedCount > 0 { return "exclamationmark.triangle" }
         return "checkmark.circle"
+    }
+
+    private var symbolStyle: AnyShapeStyle {
+        guard let result = model.runResult else { return AnyShapeStyle(.green) }
+        if result.failedCount > 0 && result.importedCount == 0 { return AnyShapeStyle(.red) }
+        if result.wasCancelled || result.failedCount > 0 { return AnyShapeStyle(.orange) }
+        return AnyShapeStyle(.green)
     }
 
     private var headline: String {
         guard let result = model.runResult else { return "Done" }
+        if result.failedCount > 0 && result.importedCount == 0 {
+            return "Nothing could be imported"
+        }
         if result.importedCount == 0 && result.totalPending == 0 {
             return "Nothing new to import"
         }

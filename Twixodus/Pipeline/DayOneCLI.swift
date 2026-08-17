@@ -6,7 +6,21 @@
 
 import Foundation
 
-public final class DayOneCLI {
+/// The one seam between the pipeline and Day One: something that can create
+/// an entry. DayOneCLI is the real implementation; tests substitute a mock so
+/// the ImportEngine loop can run without the CLI installed.
+public protocol EntryPosting {
+    func addPost(
+        text: String,
+        journal: String?,
+        tags: [String],
+        date: Date?,
+        coordinate: (latitude: Double, longitude: Double)?,
+        attachments: [String]
+    ) -> Bool
+}
+
+public final class DayOneCLI: EntryPosting {
 
     /// The Day One CLI is sandboxed (com.apple.security.app-sandbox) and can
     /// only read files inside the app's group container. Attachments passed
@@ -44,17 +58,19 @@ public final class DayOneCLI {
     }
 
     private let binaryPath: String
-    private let log: (String) -> Void
+    private let log: (String, ImportLogKind) -> Void
 
-    public init(binaryPath: String, log: @escaping (String) -> Void = { _ in }) {
+    public init(binaryPath: String, log: @escaping (String, ImportLogKind) -> Void = { _, _ in }) {
         self.binaryPath = binaryPath
         self.log = log
     }
 
     /// Creates a new entry in the Day One app using the CLI.
     ///
-    /// If creating an entry with attachments fails, it automatically retries
-    /// creating the same entry without the attachments.
+    /// Attachments that don't exist on disk are skipped individually (some
+    /// archives are exported with media files missing), so one absent file
+    /// can't take the rest of the entry's media down with it. If creating an
+    /// entry with attachments still fails, it retries once without them.
     ///
     /// Returns true if the command was executed successfully.
     public func addPost(
@@ -65,9 +81,18 @@ public final class DayOneCLI {
         coordinate: (latitude: Double, longitude: Double)? = nil,
         attachments: [String] = []
     ) -> Bool {
+        var usable: [String] = []
+        for path in attachments {
+            if FileManager.default.fileExists(atPath: path) {
+                usable.append(path)
+            } else {
+                log("Warning: attachment is missing from the archive, skipping it: \(path)", .warning)
+            }
+        }
+
         // Stage attachments inside the Day One group container — the sandboxed
         // CLI can't read them from anywhere else (see stagingDir).
-        let staged = attachments.isEmpty ? [] : stageAttachments(attachments)
+        let staged = usable.isEmpty ? [] : stageAttachments(usable)
         defer { cleanupStaged(staged) }
 
         let success = execute(buildCommand(
@@ -78,7 +103,7 @@ public final class DayOneCLI {
         // If the first attempt failed AND we were trying to add attachments,
         // retry the command without the attachments.
         if !success, !staged.isEmpty {
-            log("Warning: Failed to add entry with attachments. Retrying without them...")
+            log("Warning: Failed to add entry with attachments. Retrying without them...", .warning)
             return execute(buildCommand(
                 text: text, journal: journal, tags: tags, date: date,
                 coordinate: coordinate, attachments: []
@@ -98,7 +123,7 @@ public final class DayOneCLI {
         do {
             try fm.createDirectory(atPath: Self.stagingDir, withIntermediateDirectories: true)
         } catch {
-            log("Warning: can't create staging dir \(Self.stagingDir): \(error.localizedDescription)")
+            log("Warning: can't create staging dir \(Self.stagingDir): \(error.localizedDescription)", .warning)
             return attachments
         }
 
@@ -114,7 +139,7 @@ public final class DayOneCLI {
                 try fm.copyItem(atPath: path, toPath: target)
                 staged.append(target)
             } catch {
-                log("Warning: couldn't stage attachment \(path): \(error.localizedDescription)")
+                log("Warning: couldn't stage attachment \(path): \(error.localizedDescription)", .warning)
                 staged.append(path)
             }
         }
@@ -190,7 +215,7 @@ public final class DayOneCLI {
         do {
             try process.run()
         } catch {
-            log("Error: could not run \(binaryPath): \(error.localizedDescription)")
+            log("Error: could not run \(binaryPath): \(error.localizedDescription)", .error)
             return false
         }
 
@@ -203,12 +228,12 @@ public final class DayOneCLI {
         if process.terminationStatus == 0 {
             // The Day One CLI outputs the UUID of the new entry on success.
             let out = String(data: outData, encoding: .utf8)?.pyStrip() ?? ""
-            log("Success: \(out)")
+            log("Success: \(out)", .info)
             return true
         } else {
             let err = String(data: errData, encoding: .utf8)?.pyStrip() ?? ""
-            log("Error executing Day One command. Exit Code: \(process.terminationStatus)")
-            log("Error Details: \(err)")
+            log("Error executing Day One command. Exit Code: \(process.terminationStatus)", .error)
+            log("Error Details: \(err)", .error)
             return false
         }
     }

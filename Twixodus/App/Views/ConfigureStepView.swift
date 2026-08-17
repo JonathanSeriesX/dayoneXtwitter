@@ -45,7 +45,10 @@ struct ConfigureStepView: View {
             }
             .padding(14)
         }
-        .onAppear { model.refreshDayOneBinary() }
+        .onAppear {
+            model.refreshDayOneBinary()
+            model.refreshAlreadyImportedCount()
+        }
     }
 
     private var journalNameInvalid: Bool {
@@ -74,13 +77,15 @@ struct ConfigureStepView: View {
                         Text("\(archive.adoptedOrphans) self-replies whose parent tweet is gone")
                     }
                 }
-                if let ledger = model.ledger {
-                    let done = ledger.loadProcessedIDs().count
-                    if done > 0 {
-                        LabeledContent("Already imported") {
-                            Text("\(done) threads (from previous runs — they'll be skipped)")
-                        }
+                if model.alreadyImportedCount > 0 {
+                    LabeledContent("Already imported") {
+                        Text("\(model.alreadyImportedCount) threads (from previous runs — they'll be skipped)")
                     }
+                }
+                ForEach(archive.warnings, id: \.self) { warning in
+                    Label(warning, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.callout)
                 }
             }
         }

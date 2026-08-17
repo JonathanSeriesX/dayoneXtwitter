@@ -11,6 +11,7 @@ import Foundation
 public enum ArchiveError: LocalizedError {
     case notFound(searched: String)
     case unreadable(file: String, underlying: String)
+    case malformed(file: String, detail: String)
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +20,10 @@ public enum ArchiveError: LocalizedError {
                 + "Drop your Twitter archive (the .zip, or the unpacked folder)."
         case .unreadable(let file, let underlying):
             return "Couldn't read \(file): \(underlying)"
+        case .malformed(let file, let detail):
+            return "Couldn't parse \(file): \(detail) "
+                + "The file may be corrupt or truncated — try re-extracting "
+                + "or re-downloading the archive."
         }
     }
 }
@@ -96,6 +101,11 @@ public enum TwitterArchiveLoader {
     ///
     /// The file is JavaScript, not JSON: a `window.YTD.tweets.partN = ` prefix
     /// followed by a JSON array. Everything before the first '[' is cut off.
+    ///
+    /// An unparseable file throws instead of returning [] — a corrupt part
+    /// would otherwise silently drop thousands of tweets from the import.
+    /// Individually malformed tweets within a healthy file are skipped, with
+    /// a warning saying how many.
     static func loadTweetsFromFile(_ url: URL, log: (String) -> Void = { _ in }) throws -> [Tweet] {
         let content: String
         do {
@@ -105,8 +115,8 @@ public enum TwitterArchiveLoader {
         }
 
         guard let start = content.firstIndex(of: "[") else {
-            log("Error: JSON data could not be located in \(url.lastPathComponent).")
-            return []
+            throw ArchiveError.malformed(
+                file: url.lastPathComponent, detail: "no JSON array found in the file.")
         }
 
         let jsonData = Data(content[start...].utf8)
@@ -114,19 +124,26 @@ public enum TwitterArchiveLoader {
         do {
             parsed = try JSONSerialization.jsonObject(with: jsonData)
         } catch {
-            log("JSON decoding failed in \(url.lastPathComponent): \(error.localizedDescription)")
-            return []
+            throw ArchiveError.malformed(
+                file: url.lastPathComponent,
+                detail: "JSON decoding failed (\(error.localizedDescription)).")
         }
 
         guard let items = parsed as? [[String: Any]] else {
-            log("Error: unexpected JSON shape in \(url.lastPathComponent).")
-            return []
+            throw ArchiveError.malformed(
+                file: url.lastPathComponent,
+                detail: "unexpected JSON shape — expected an array of {\"tweet\": …} objects.")
         }
 
-        return items.compactMap { wrapper in
+        let tweets = items.compactMap { wrapper -> Tweet? in
             guard let tweetDict = wrapper["tweet"] as? [String: Any] else { return nil }
             return parseTweet(tweetDict)
         }
+        if tweets.count != items.count {
+            log("Warning: \(items.count - tweets.count) of \(items.count) tweets in "
+                + "\(url.lastPathComponent) were malformed and were skipped.")
+        }
+        return tweets
     }
 
     private static func parseTweet(_ dict: [String: Any]) -> Tweet? {

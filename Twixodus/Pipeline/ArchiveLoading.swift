@@ -14,6 +14,9 @@ public struct LoadedArchive {
     public let archiveUsername: String?
     public let adoptedOrphans: Int
     public let threads: [TweetThread]
+    /// Non-fatal problems found while loading (e.g. malformed tweets that had
+    /// to be skipped), so the UI can show them instead of losing them.
+    public let warnings: [String]
 
     /// The date span of the archive's threads (by root tweet), for the UI.
     public var threadDateRange: ClosedRange<Date>? {
@@ -34,7 +37,14 @@ public enum ArchiveLoading {
         // ---- Step 1: find the Twitter archive and read every tweet --------
         stage("Reading tweets…")
         let ref = try TwitterArchiveLoader.findArchive(at: root)
-        let (tweets, ownTweetIDs) = try TwitterArchiveLoader.loadTweets(from: ref, log: log)
+        // The loader only logs problems, so its messages double as warnings
+        // for the UI.
+        var warnings: [String] = []
+        let warn: (String) -> Void = { message in
+            warnings.append(message)
+            log(message)
+        }
+        let (tweets, ownTweetIDs) = try TwitterArchiveLoader.loadTweets(from: ref, log: warn)
         log("Using archive folder \(ref.dataFolder.path)")
         let partCount = ref.tweetsJSPaths.count > 1 ? " across \(ref.tweetsJSPaths.count) files" : ""
         log("Found \(tweets.count) tweets in the archive\(partCount).")
@@ -67,7 +77,8 @@ public enum ArchiveLoading {
             accountId: account.accountId,
             archiveUsername: account.username,
             adoptedOrphans: adopted,
-            threads: threads
+            threads: threads,
+            warnings: warnings
         )
     }
 }

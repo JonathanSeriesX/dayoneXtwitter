@@ -6,9 +6,14 @@
 import Foundation
 
 /// Thread-safe pause/cancel flags shared between the UI and the import loop.
+///
+/// Cancellation lives here, not in Swift's task tree: the app runs the engine
+/// on a detached task (to get off the main actor), and detached tasks don't
+/// inherit cancellation from the task that awaits them.
 public final class ImportControl {
     private let lock = NSLock()
     private var paused = false
+    private var cancelled = false
 
     public init() {}
 
@@ -21,6 +26,26 @@ public final class ImportControl {
     public func setPaused(_ value: Bool) {
         lock.lock()
         paused = value
+        lock.unlock()
+    }
+
+    public var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    public func cancel() {
+        lock.lock()
+        cancelled = true
+        lock.unlock()
+    }
+
+    /// Clears both flags — called once at the start of every run.
+    public func reset() {
+        lock.lock()
+        paused = false
+        cancelled = false
         lock.unlock()
     }
 }
@@ -54,6 +79,12 @@ public struct ImportCallbacks {
 public struct ImportRunResult {
     public var importedCount = 0
     public var skippedAlreadyImported = 0
+    /// Threads that Day One rejected (CLI failed). They are not recorded in
+    /// the ledger, so the next run retries them.
+    public var failedCount = 0
+    /// Threads skipped by configuration: replies with no reply journal set,
+    /// retweets when retweets are ignored. Recorded in the ledger as done.
+    public var skippedNoJournal = 0
     public var totalPending = 0
     public var wasCancelled = false
     public var stoppedAtLimit = false
@@ -66,7 +97,7 @@ public final class ImportEngine {
     private let config: ImportConfig
     private let context: ThreadCategorizer.Context
     private let ledger: ImportLedger
-    private let dayOne: DayOneCLI
+    private let dayOne: EntryPosting
     private let ollama: OllamaClient?
     private let control: ImportControl
     private let callbacks: ImportCallbacks
@@ -86,7 +117,7 @@ public final class ImportEngine {
         config: ImportConfig,
         context: ThreadCategorizer.Context,
         ledger: ImportLedger,
-        dayOne: DayOneCLI,
+        dayOne: EntryPosting,
         ollama: OllamaClient?,
         categoryCache: CategoryCache,
         control: ImportControl,
@@ -135,38 +166,58 @@ public final class ImportEngine {
 
         // ---- Steps 5 & 6: import the planned threads, one entry each ------
         result.totalPending = countPendingImports(plan, processedIDs: processedIDs)
-        callbacks.progress(0, result.totalPending)
+        // The denominator for the progress bar. It shrinks when a pending
+        // thread turns out not to produce an entry (no target journal, or Day
+        // One rejected it), so the bar can actually reach 100%.
+        var progressTotal = result.totalPending
+        callbacks.progress(0, progressTotal)
 
         var reimported: [ImportedEntry] = []
 
         for (i, planned) in plan.enumerated() {
-            if Task.isCancelled {
+            if cancelRequested {
                 result.wasCancelled = true
                 break
             }
             await waitWhilePaused()
-            if Task.isCancelled {
+            if cancelRequested {
                 result.wasCancelled = true
                 break
             }
 
-            if let limit = config.maxThreadsToProcess, i >= limit {
-                log("Stopping after processing \(limit) threads.")
-                result.stoppedAtLimit = true
+            // The limit counts threads that actually reached Day One (imported
+            // or failed) — not loop iterations, so already-imported threads
+            // don't eat the budget on a second run.
+            if let limit = config.maxThreadsToProcess,
+               result.importedCount + result.failedCount >= limit {
+                if countPendingImports(Array(plan[i...]), processedIDs: processedIDs) > 0 {
+                    log("Stopping after processing \(limit) threads.")
+                    result.stoppedAtLimit = true
+                }
                 break
             }
 
-            if var entry = await importSingleThread(
-                planned.thread, processedIDs: &processedIDs, forceReimport: planned.isReimport,
-                skippedCounter: &result.skippedAlreadyImported
+            switch await importSingleThread(
+                planned.thread, processedIDs: &processedIDs, forceReimport: planned.isReimport
             ) {
+            case .imported(var entry):
                 result.importedCount += 1
-                callbacks.progress(result.importedCount, result.totalPending)
+                callbacks.progress(result.importedCount, progressTotal)
                 if planned.isReimport {
                     entry.previousTweetCount = ThreadSelection.countTweetsBefore(
                         planned.thread, startDate: config.startDate)
                     reimported.append(entry)
                 }
+            case .skippedAlreadyImported:
+                result.skippedAlreadyImported += 1
+            case .skippedNoJournal:
+                result.skippedNoJournal += 1
+                progressTotal -= 1
+                callbacks.progress(result.importedCount, progressTotal)
+            case .failed:
+                result.failedCount += 1
+                progressTotal -= 1
+                callbacks.progress(result.importedCount, progressTotal)
             }
         }
 
@@ -194,23 +245,31 @@ public final class ImportEngine {
 
     // MARK: - One thread → one entry (importer.py)
 
+    /// What happened to one planned thread.
+    enum ThreadOutcome {
+        case imported(ImportedEntry)
+        case skippedAlreadyImported
+        /// Skipped by configuration (no reply journal, retweets ignored);
+        /// recorded in the ledger so it isn't re-planned next run.
+        case skippedNoJournal
+        /// Day One rejected the entry; NOT recorded, so the next run retries.
+        case failed
+    }
+
     /// Imports one thread into Day One, unless the ledger says it's done.
     ///
     /// With forceReimport, the thread is imported even if it was imported
-    /// before — used for threads that grew since their last import. Returns an
-    /// ImportedEntry describing the created entry, or nil if nothing was posted.
+    /// before — used for threads that grew since their last import.
     private func importSingleThread(
         _ thread: TweetThread,
         processedIDs: inout Set<String>,
-        forceReimport: Bool,
-        skippedCounter: inout Int
-    ) async -> ImportedEntry? {
+        forceReimport: Bool
+    ) async -> ThreadOutcome {
         let firstTweet = thread[0]
         let tweetId = firstTweet.idStr
 
         if processedIDs.contains(tweetId), !forceReimport {
-            skippedCounter += 1
-            return nil
+            return .skippedAlreadyImported
         }
 
         // A re-imported thread is tracked by "<root id>+<last tweet id>", so
@@ -220,8 +279,7 @@ public final class ImportEngine {
         if let marker = reimportMarker {
             if processedIDs.contains(marker) {
                 log("Skipping thread \(tweetId): its extension was already imported.")
-                skippedCounter += 1
-                return nil
+                return .skippedAlreadyImported
             }
             log("Re-importing thread \(tweetId): it was extended within the date range.")
         }
@@ -268,7 +326,7 @@ public final class ImportEngine {
             // Mark as processed even if skipped
             ledger.rememberProcessed(
                 tweetId: tweetId, reimportMarker: reimportMarker, processedIDs: &processedIDs)
-            return nil
+            return .skippedNoJournal
         }
 
         // Step 6: hand the entry to the Day One CLI.
@@ -281,18 +339,22 @@ public final class ImportEngine {
             coordinate: content.coordinate,
             attachments: content.mediaFiles
         )
-        guard posted else { return nil }
+        guard posted else {
+            log("Couldn't save thread \(tweetId) to Day One — it stays unrecorded, "
+                + "so the next run will retry it.", .error)
+            return .failed
+        }
 
         ledger.rememberProcessed(
             tweetId: tweetId, reimportMarker: reimportMarker, processedIDs: &processedIDs)
-        return ImportedEntry(
+        return .imported(ImportedEntry(
             tweetId: tweetId,
             title: title,
             category: category,
             journal: targetJournal,
             date: content.date ?? firstTweet.createdAt,
             tweetCount: thread.count
-        )
+        ))
     }
 
     /// Logs the thread being imported, tweet by tweet.
@@ -310,10 +372,17 @@ public final class ImportEngine {
 
     // MARK: - Pause / cancel plumbing
 
+    /// Cancellation comes through ImportControl (the app runs the engine on a
+    /// detached task, which task cancellation can't reach); Task.isCancelled
+    /// is honored too for callers that do run the engine as a child task.
+    private var cancelRequested: Bool {
+        control.isCancelled || Task.isCancelled
+    }
+
     private func waitWhilePaused() async {
         guard control.isPaused else { return }
         callbacks.activity("Paused")
-        while control.isPaused && !Task.isCancelled {
+        while control.isPaused && !cancelRequested {
             try? await Task.sleep(nanoseconds: 200_000_000)
         }
     }
