@@ -1,3 +1,0 @@
-ollama
-python-dateutil
-humanize
