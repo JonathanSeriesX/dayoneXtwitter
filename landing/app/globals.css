@@ -351,6 +351,30 @@ body {
     color: var(--muted);
   }
 
+  /* a .sub that introduces a second list instead of opening the section — it
+     needs air above it, and the Markdown can't say so */
+  .dash-body > * + .sub {
+    margin-top: 18px;
+  }
+
+  /* one rung below .dash-title: a block that belongs to the section it sits
+     in, but wants its own name. The rule above it does the separating. */
+  .subhead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .subhead + .sub {
+    margin-top: 10px;
+  }
+
   /* smooth expand where the browser supports it; instant elsewhere */
   .dash::details-content {
     opacity: 1;
@@ -394,27 +418,33 @@ body {
     margin-top: 0.5em;
   }
 
-  /* ---- the manual's numbered steps ---- */
+  /* ---- the manual's numbered steps ----
+     The number is a counter in the margin rather than a span in the markup, so
+     an `1.` in content/page.md needs nothing wrapped around it to come out as a
+     circle. Same reason .prose-list draws its dash with ::before. */
   .steps {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    counter-reset: step;
+    padding-left: 2.4rem;
   }
 
   .steps li {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
+    position: relative;
+    counter-increment: step;
   }
 
-  .step-num {
-    flex: none;
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: -2.4rem;
+    top: 0.1em;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 1.7rem;
     height: 1.7rem;
-    margin-top: 0.1em;
     border-radius: 9999px;
     font-family:
       ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
