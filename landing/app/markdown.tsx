@@ -1,12 +1,6 @@
-import type { Element } from "hast";
-import Image, { type StaticImageData } from "next/image";
 import type { ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-
-import llmTitlesShot from "@/public/pics/llm_titles.avif";
-import repliesShot from "@/public/pics/replies.avif";
-import threadsShot from "@/public/pics/threads.avif";
 
 import { CopyButton } from "./copy-button";
 
@@ -14,26 +8,6 @@ import { CopyButton } from "./copy-button";
    below maps one Markdown construct onto the markup page.tsx used to spell out
    by hand — which is what lets the copy stay plain Markdown and still come out
    as glass cards, numbered circles and terminal snippets. */
-
-/* Screenshots are imported rather than looked up by path at runtime: the static
-   import is what hands next/image the intrinsic size, so the page doesn't jump
-   while the image loads. A filename the Markdown names but this map doesn't
-   know renders nothing — better a gap than a broken-image icon.
-
-   The Markdown keeps naming the canonical PNGs; each entry serves that PNG's
-   lossless AVIF twin (same pixels, verified, ~25–40% smaller), which lives
-   next to it in public/pics. Dimensions are spelled out because the bundler
-   can't read them from AVIF and stamps a 100×100 placeholder, which would
-   bring back the layout jump. A new screenshot needs all four: the PNG, an
-   `avifenc --lossless` encode, and its line here with the PNG's real size. */
-const SHOTS: Record<
-  string,
-  { src: StaticImageData; width: number; height: number }
-> = {
-  "pics/threads.png": { src: threadsShot, width: 2300, height: 1810 },
-  "pics/replies.png": { src: repliesShot, width: 2570, height: 1752 },
-  "pics/llm_titles.png": { src: llmTitlesShot, width: 2624, height: 1754 },
-};
 
 /* Long enough that you'd copy it rather than read it — a wallet address, not a
    model name. Those get user-select: all, so one click takes the whole string. */
@@ -57,25 +31,13 @@ function isLabel(children: ReactNode): boolean {
   return text(children).trimEnd().endsWith(":");
 }
 
-function isLoneImage(node: Element | undefined): boolean {
-  const content = node?.children.filter(
-    (child) => child.type !== "text" || child.value.trim() !== "",
-  );
-  const only = content?.length === 1 ? content[0] : undefined;
-  return only?.type === "element" && only.tagName === "img";
-}
-
 const components: Components = {
   /* `### AI titles` — a named block inside a section, one rung below its title */
   h3: ({ children }) => <h3 className="subhead">{children}</h3>,
 
-  /* An image on a line of its own is still a paragraph as far as Markdown is
-     concerned, and <figure> inside <p> is invalid HTML the browser silently
-     reparents — which breaks hydration. Hand the figure straight through. */
-  p: ({ children, node }) => {
-    if (isLoneImage(node)) return <>{children}</>;
-    return <p className={isLabel(children) ? "sub" : undefined}>{children}</p>;
-  },
+  p: ({ children }) => (
+    <p className={isLabel(children) ? "sub" : undefined}>{children}</p>
+  ),
 
   /* `- bullet`, accent dash hanging in the margin. Nested lists get the class
      too — .prose-list ul already handles their indent. */
@@ -137,22 +99,13 @@ const components: Components = {
     );
   },
 
-  /* ![alt](pics/shot.png) — the PNGs carry their own rounded corners, margin and
-     drop shadow, so .shot draws no frame of its own. */
-  img: ({ src, alt }) => {
-    const shot = typeof src === "string" ? SHOTS[src] : undefined;
-    if (!shot) return null;
-    return (
-      <figure className="shot">
-        <Image
-          src={shot.src}
-          width={shot.width}
-          height={shot.height}
-          alt={alt ?? ""}
-        />
-      </figure>
-    );
-  },
+  /* ![alt](pics/shot.avif) — served straight from public/, no registration
+     anywhere. The screenshots carry their own rounded corners, margin and drop
+     shadow, so .shot draws no frame of its own. Plain <img> rather than
+     next/image: with `images.unoptimized` there is nothing to optimize, and
+     the static site can't know an AVIF's dimensions at build time anyway. */
+  // eslint-disable-next-line @next/next/no-img-element
+  img: ({ src, alt }) => <img src={`/${src}`} alt={alt} loading="lazy" className="shot" />,
 };
 
 export function Markdown({ children }: { children: string }) {

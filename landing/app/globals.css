@@ -472,17 +472,14 @@ body {
   }
 
   /* ---- README screenshots ----
-     The PNGs carry their own transparent margin, rounded window corners and
+     The files carry their own transparent margin, rounded window corners and
      drop shadow, so any frame we draw here would just double it. Bare image,
      nothing around it. */
   .shot {
-    margin-top: 16px;
-  }
-
-  .shot img {
     display: block;
     width: 100%;
     height: auto;
+    margin-top: 16px;
   }
 
   /* ---- terminal snippet, with its copy button parked in the corner ---- */
