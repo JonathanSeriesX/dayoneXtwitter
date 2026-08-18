@@ -118,6 +118,16 @@ struct ConfigureStepView: View {
 
     private var dateRangeSection: some View {
         Section("Date range") {
+            if let covered = model.lastCoveredDate {
+                HStack {
+                    Label(
+                        "Previous imports covered everything through \(Self.dayFormatter.string(from: covered))",
+                        systemImage: "clock.arrow.circlepath")
+                    Spacer()
+                    Button("Import Only Newer Tweets") { model.continueFromLastImport() }
+                        .secondaryActionButtonStyle()
+                }
+            }
             DatePicker("From", selection: $settings.startDate, displayedComponents: .date)
             DatePicker("Until", selection: $settings.endDate, displayedComponents: .date)
             Text("Only threads that started between these days (inclusive) are imported. Threads that started earlier but gained tweets inside the range are re-imported in full — you'll get a reminder to delete the older, shorter copies.")
@@ -131,6 +141,7 @@ struct ConfigureStepView: View {
             Toggle("Import in random order (useful for previewing results)", isOn: $settings.shuffleMode)
             Toggle("Skip retweets", isOn: $settings.ignoreRetweets)
             Toggle("End entries with “Sent from <client>”", isOn: $settings.showTweetSource)
+            Toggle("Point tweet links at xcancel.com instead of twitter.com", isOn: $settings.useXcancelLinks)
             Toggle("Limit threads per run", isOn: $settings.limitThreads)
             if settings.limitThreads {
                 TextField("Max threads", value: $settings.maxThreadsToProcess, format: .number)

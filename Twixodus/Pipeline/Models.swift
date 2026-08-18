@@ -230,6 +230,8 @@ public struct ImportConfig {
     public var ignoreRetweets: Bool
     /// End entries with "Sent from <client>" (Twitter for Android, etc.).
     public var showTweetSource: Bool
+    /// Point links that lead to tweets at xcancel.com instead of twitter.com.
+    public var useXcancelLinks: Bool
     /// Only threads started between these two dates are processed
     /// (naive UTC, same semantics as the Python config dates).
     public var startDate: Date
@@ -252,6 +254,7 @@ public struct ImportConfig {
         shuffleMode: Bool = true,
         ignoreRetweets: Bool = false,
         showTweetSource: Bool = true,
+        useXcancelLinks: Bool = false,
         startDate: Date = PipelineDates.date(2006, 3, 21),
         endDate: Date = PipelineDates.date(2069, 4, 20),
         processTitlesWithLLM: Bool = false,
@@ -269,6 +272,7 @@ public struct ImportConfig {
         self.shuffleMode = shuffleMode
         self.ignoreRetweets = ignoreRetweets
         self.showTweetSource = showTweetSource
+        self.useXcancelLinks = useXcancelLinks
         self.startDate = startDate
         self.endDate = endDate
         self.processTitlesWithLLM = processTitlesWithLLM

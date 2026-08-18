@@ -34,6 +34,7 @@ final class AppSettings: ObservableObject {
     @AppStorage("shuffleMode") var shuffleMode = true
     @AppStorage("ignoreRetweets") var ignoreRetweets = false
     @AppStorage("showTweetSource") var showTweetSource = true
+    @AppStorage("useXcancelLinks") var useXcancelLinks = false
 
     // MARK: - LLM titles
 
@@ -80,6 +81,7 @@ final class AppSettings: ObservableObject {
             shuffleMode: shuffleMode,
             ignoreRetweets: ignoreRetweets,
             showTweetSource: showTweetSource,
+            useXcancelLinks: useXcancelLinks,
             startDate: Self.utcDay(startDate, endOfDay: false),
             endDate: Self.utcDay(endDate, endOfDay: true),
             processTitlesWithLLM: llmTitlesEnabled,

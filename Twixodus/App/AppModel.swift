@@ -51,6 +51,9 @@ final class AppModel: ObservableObject {
     /// How many threads the ledger already records — read once per event
     /// (archive loaded, run finished), not on every render.
     @Published var alreadyImportedCount = 0
+    /// How far previous completed runs of this account got — the configure
+    /// screen offers to continue from there.
+    @Published var lastCoveredDate: Date?
 
     let settings = AppSettings()
     let control = ImportControl()
@@ -108,6 +111,7 @@ final class AppModel: ObservableObject {
         categoryCache = ImportEngine.CategoryCache()
         runResult = nil
         refreshAlreadyImportedCount()
+        lastCoveredDate = ImportHistory(accountId: loaded.accountId).load()?.coveredThrough
 
         // A fresh archive knows the account's username — prefill it, the user
         // can still edit or clear it.
@@ -128,6 +132,14 @@ final class AppModel: ObservableObject {
     /// cached in alreadyImportedCount so SwiftUI bodies never touch the file.
     func refreshAlreadyImportedCount() {
         alreadyImportedCount = ledger?.loadProcessedIDs().count ?? 0
+    }
+
+    /// Points the date range at everything newer than what previous runs
+    /// covered. The one-day overlap is deduplicated by the ledger.
+    func continueFromLastImport() {
+        guard let covered = lastCoveredDate else { return }
+        settings.startDate = covered
+        settings.endDate = Date()
     }
 
     func startImport() {
@@ -194,7 +206,23 @@ final class AppModel: ObservableObject {
         runResult = result
         saveReportIfAny(result)
         refreshAlreadyImportedCount()
+        recordCoverage(result)
         step = .done
+    }
+
+    /// After a fully completed run, remembers how far the imports now reach —
+    /// but only when nothing was cut off by a cancel, the per-run limit, or a
+    /// failure, so the record never claims coverage the run didn't deliver.
+    private func recordCoverage(_ result: ImportRunResult) {
+        guard let archive,
+              !result.wasCancelled, !result.stoppedAtLimit, result.failedCount == 0,
+              let newestTweet = archive.tweets.map(\.createdAt).max()
+        else { return }
+        // The run can only vouch for tweets the archive actually contains.
+        let covered = min(settings.buildConfig().endDate, newestTweet)
+        let history = ImportHistory(accountId: archive.accountId)
+        history.recordCovered(through: covered)
+        lastCoveredDate = history.load()?.coveredThrough
     }
 
     func togglePause() {

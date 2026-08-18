@@ -55,21 +55,26 @@ public enum EntryComposer {
                 entryDate = currentTweetDate
             }
 
-            entryText += tweet.fullText + "\n\n"
+            // With xcancel enabled, links inside the tweet's own text that
+            // lead to tweets are repointed too (labels stay as posted).
+            entryText += (config.useXcancelLinks
+                ? XcancelLinks.rewriteTweetLinks(in: tweet.fullText)
+                : tweet.fullText) + "\n\n"
 
             var metrics: [String] = []
             let likes = tweet.favoriteCount
             let retweets = tweet.retweetCount
 
             if let username = config.currentUsername, !username.isEmpty {
-                let tweetURL = "https://twitter.com/\(username)/status/\(tweet.idStr)"
+                let host = config.useXcancelLinks ? XcancelLinks.host : "twitter.com"
+                let tweetURL = "https://\(host)/\(username)/status/\(tweet.idStr)"
                 if likes > 0 {
                     metrics.append("[Likes: \(likes)](\(tweetURL)/likes) ⭐️")
                 }
                 if retweets > 0 {
                     metrics.append("[Retweets: \(retweets)](\(tweetURL)/retweets) 🔁")
                 }
-                metrics.append("[Open on twitter.com](\(tweetURL))")
+                metrics.append("[Open on \(host)](\(tweetURL))")
             } else {
                 if likes > 0 {
                     metrics.append("Likes: \(likes) ⭐️")
@@ -188,7 +193,8 @@ public enum EntryComposer {
             let rest = mentionRunRegex.sub("", entryText).pyStrip()
             let mentionsStr = mentions.joined(separator: " ")
             entryText = "\(rest)\n\n"
-            let replyToURL = "https://twitter.com/i/web/status/\(replyToId)"
+            let host = config.useXcancelLinks ? XcancelLinks.host : "twitter.com"
+            let replyToURL = "https://\(host)/i/web/status/\(replyToId)"
             entryText += "In response to [this tweet](\(replyToURL)), "
                 + "which is part of the conversation with \(mentionsStr)\n"
         } else if config.showTweetSource {
