@@ -29,7 +29,16 @@ public enum ImportOrder: String, CaseIterable {
 ///   * LinkExpansion rewrites `fullText` and fills `mediaFiles`,
 ///   * ThreadBuilder strips the reply markers off orphaned self-replies,
 ///   * ThreadCategorizer strips "RT @user:" prefixes.
-public final class Tweet {
+public final class Tweet: @unchecked Sendable {
+    // Unchecked because the mutation above is the point: this is a reference
+    // type so the pipeline can rewrite text in place. What makes moving one
+    // between tasks safe is ownership, not immutability — a tweet is written
+    // during archive load, then handed off, and afterwards only the single
+    // import run that owns the archive touches it (AppModel serialises runs).
+    //
+    // The rule that keeps this honest: never read a `var` of a Tweet from the
+    // UI while a run is in flight. Views may show counts and dates; showing
+    // tweet *text* live during an import would be a real race.
     public let idStr: String
     public var fullText: String
     /// Parsed from "Fri Mar 21 04:40:00 +0000 2006"; treated as a naive UTC
@@ -187,7 +196,7 @@ public struct UserMention {
 public typealias TweetThread = [Tweet]
 
 /// Where the unpacked Twitter archive lives on disk.
-public struct TwitterArchiveRef {
+public struct TwitterArchiveRef: Sendable {
     /// .../twitter-<date>-<hash>/data
     public let dataFolder: URL
     /// tweets.js, tweets-part1.js, ... in order.

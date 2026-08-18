@@ -1,0 +1,53 @@
+# Compiles the app and runs the test suite when Swift code changes.
+#
+# Paths are filtered on purpose: the landing page, README and screenshots make
+# up most of the commits here and none of them can break a build, so they don't
+# start a macOS runner. Publishing stays in release.yml, which only fires on a
+# v* tag — this workflow never releases anything.
+#
+# The steps deliberately mirror release.yml's `test` job rather than sharing a
+# reusable workflow: two short copies are easier to read than the indirection,
+# and release.yml is the one that must never break.
+
+name: CI
+
+on:
+  push:
+    paths:
+      - "Twixodus/**"
+      - "TwixodusTests/**"
+      - "tools/**"
+      - project.yml
+      - .github/workflows/ci.yml
+  pull_request:
+    paths:
+      - "Twixodus/**"
+      - "TwixodusTests/**"
+      - "tools/**"
+      - project.yml
+      - .github/workflows/ci.yml
+  workflow_dispatch:
+
+# A newer push makes an in-flight run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Run unit tests
+        run: |
+          xcodegen generate
+          xcodebuild -project Twixodus.xcodeproj -scheme Twixodus \
+            -configuration Debug -derivedDataPath build/DerivedData test

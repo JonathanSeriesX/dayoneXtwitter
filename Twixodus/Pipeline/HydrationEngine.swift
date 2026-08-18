@@ -11,7 +11,7 @@
 
 import Foundation
 
-public struct HydrationRunResult {
+public struct HydrationRunResult: Sendable {
     public var retweetsRetrieved = 0
     public var quotesRetrieved = 0
     public var unavailable = 0

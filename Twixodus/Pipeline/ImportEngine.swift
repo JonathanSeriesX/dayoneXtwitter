@@ -76,7 +76,7 @@ public struct ImportCallbacks {
     }
 }
 
-public struct ImportRunResult {
+public struct ImportRunResult: Sendable {
     public var importedCount = 0
     public var skippedAlreadyImported = 0
     /// Threads that Day One rejected (CLI failed). They are not recorded in
@@ -178,7 +178,7 @@ public final class ImportEngine {
 
         var reimported: [ImportedEntry] = []
 
-        for (i, planned) in plan.enumerated() {
+        for planned in plan {
             if cancelRequested {
                 result.wasCancelled = true
                 break

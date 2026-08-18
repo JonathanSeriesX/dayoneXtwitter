@@ -6,7 +6,7 @@
 import Foundation
 
 /// A fully loaded archive: everything the import runs need, computed once.
-public struct LoadedArchive {
+public struct LoadedArchive: Sendable {
     public let ref: TwitterArchiveRef
     public let tweets: [Tweet]
     public let ownTweetIDs: Set<String>
