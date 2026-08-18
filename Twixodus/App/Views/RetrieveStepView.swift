@@ -9,11 +9,18 @@ import SwiftUI
 
 struct RetrieveStepView: View {
     @EnvironmentObject private var model: AppModel
+    /// The log is the running view, and a manual detour afterwards — a
+    /// finished run lands back on the summary, which is the useful screen.
+    @State private var showingLog = false
 
     var body: some View {
         VStack(spacing: 0) {
-            if model.isRetrieving || model.retrieveSummary != nil {
+            if model.isRetrieving {
                 runHeader
+                Divider()
+                logView
+            } else if showingLog {
+                logHeader
                 Divider()
                 logView
             } else {
@@ -24,6 +31,10 @@ struct RetrieveStepView: View {
             bottomBar
         }
         .onAppear { model.refreshHydrationPlan() }
+        .onChange(of: model.isRetrieving) { _, running in
+            // A finished run returns to the plan, now showing what it did.
+            if !running { showingLog = false }
+        }
     }
 
     // MARK: - The plan (before a run)
@@ -31,6 +42,15 @@ struct RetrieveStepView: View {
     private var planView: some View {
         VStack(spacing: 0) {
             Form {
+                if let summary = model.retrieveSummary {
+                    Section {
+                        Label(summary, systemImage: model.retrieveHadTrouble
+                            ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                            .foregroundStyle(model.retrieveHadTrouble ? .orange : .green)
+                    } header: {
+                        Text("Last run")
+                    }
+                }
                 Section {
                     planRows
                 } header: {
@@ -164,11 +184,29 @@ struct RetrieveStepView: View {
         return model.retrieveSummary ?? "Done"
     }
 
+    /// The header the log carries when it's opened by hand, after the run.
+    private var logHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Retrieval log")
+                .font(.title3.weight(.semibold))
+            Spacer()
+            if let summary = model.retrieveSummary {
+                Text(summary)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+    }
+
     private var logView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(model.logLines) { line in
+                    ForEach(model.retrieveLog) { line in
                         Text(line.text)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(color(for: line.kind))
@@ -180,7 +218,7 @@ struct RetrieveStepView: View {
                 .padding(12)
             }
             .background(.quaternary.opacity(0.3))
-            .onChange(of: model.logLines.last?.id) { _, lastId in
+            .onChange(of: model.retrieveLog.last?.id) { _, lastId in
                 if let lastId {
                     proxy.scrollTo(lastId, anchor: .bottom)
                 }
@@ -226,6 +264,15 @@ struct RetrieveStepView: View {
             } else {
                 Button("Back") { model.backToConfigure() }
                     .secondaryActionButtonStyle()
+
+                // Only after a retrieval has actually run — there is no
+                // "log of the retrieval" before that.
+                if !model.retrieveLog.isEmpty {
+                    Button(showingLog ? "Close Log" : "View Log") {
+                        showingLog.toggle()
+                    }
+                    .secondaryActionButtonStyle()
+                }
 
                 if retryableCount > 0 {
                     Button("Retry \(retryableCount) Failed") {

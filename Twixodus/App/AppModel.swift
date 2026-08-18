@@ -53,6 +53,7 @@ final class AppModel: ObservableObject {
     /// zero later — this flag keeps the UI from reading that as "not started".
     @Published var progressStarted = false
     @Published var activity = ""
+    /// The import run's log (and the archive-loading messages before it).
     @Published var logLines: [LogLine] = []
     @Published var runResult: ImportRunResult?
     /// What the next run will do with the loaded archive — recomputed once per
@@ -75,6 +76,13 @@ final class AppModel: ObservableObject {
     @Published var retrieveTotal = 0
     /// One-line summary of the last completed retrieval run, for the UI.
     @Published var retrieveSummary: String?
+    /// Whether that run left anything worth a second look — the summary is
+    /// shown in orange rather than green.
+    @Published var retrieveHadTrouble = false
+    /// The retrieval run's own log, kept apart from the import's so the
+    /// Retrieve screen only ever shows tweets being fetched and downloaded —
+    /// never the archive-loading notes or a later import's entries.
+    @Published var retrieveLog: [LogLine] = []
     private(set) var hydrationStore: HydrationStore?
     private var retrieveTask: Task<Void, Never>?
     /// The tweets the last scan covered — kept so a retry can re-plan over
@@ -221,7 +229,7 @@ final class AppModel: ObservableObject {
         retrieveTotal = plan.totalPending
         retrieveSummary = nil
         activity = "Starting retrieval…"
-        logLines = []
+        retrieveLog = []
         control.reset()
 
         let engine = HydrationEngine(
@@ -229,7 +237,7 @@ final class AppModel: ObservableObject {
             control: control,
             callbacks: ImportCallbacks(
                 log: { [weak self] message, kind in
-                    Task { @MainActor [weak self] in self?.appendLog(message, kind) }
+                    Task { @MainActor [weak self] in self?.appendRetrieveLog(message, kind) }
                 },
                 progress: { [weak self] done, total in
                     Task { @MainActor [weak self] in
@@ -277,7 +285,9 @@ final class AppModel: ObservableObject {
         if result.wasCancelled { summary = "Cancelled — \(summary)" }
         if result.abortedByErrors { summary = "Stopped early (rate-limited?) — \(summary)" }
         retrieveSummary = summary
-        appendLog(summary, .info)
+        retrieveHadTrouble = result.wasCancelled || result.abortedByErrors
+            || result.failures > 0 || result.incomplete > 0
+        appendRetrieveLog(summary, .info)
         activity = ""
     }
 
@@ -475,6 +485,7 @@ final class AppModel: ObservableObject {
         loadError = nil
         runResult = nil
         logLines = []
+        retrieveLog = []
         hydrationStore = nil
         hydrationPlan = nil
         retrieveSummary = nil
@@ -489,6 +500,15 @@ final class AppModel: ObservableObject {
         // The log is a live view, not an archive — keep it from growing without bound.
         if logLines.count > 1200 {
             logLines.removeFirst(400)
+        }
+    }
+
+    private func appendRetrieveLog(_ message: String, _ kind: ImportLogKind) {
+        // One counter for both logs, so their line IDs can't collide.
+        logCounter += 1
+        retrieveLog.append(LogLine(id: logCounter, text: message, kind: kind))
+        if retrieveLog.count > 1200 {
+            retrieveLog.removeFirst(400)
         }
     }
 }

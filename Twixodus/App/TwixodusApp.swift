@@ -11,6 +11,6 @@ struct TwixodusApp: App {
                 .environmentObject(model.settings)
                 .frame(minWidth: 720, minHeight: 560)
         }
-        .defaultSize(width: 780, height: 640)
+        .defaultSize(width: 780, height: 710)
     }
 }
