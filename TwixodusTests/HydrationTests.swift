@@ -199,7 +199,7 @@ final class HydrationTests: XCTestCase {
         XCTAssertEqual(block, marker
             + "Quoting [unusual_whales from Jan 12](https://twitter.com/unusual_whales/status/555):\n"
             + marker
-            + "\"\"Gen Z has cut down on their effort at work,\" per YF.\"")
+            + "\"Gen Z has cut down on their effort at work,\" per YF.")
     }
 
     func testQuoteBlockAddsYearWhenDifferent() {
@@ -222,7 +222,7 @@ final class HydrationTests: XCTestCase {
             title: "Quoted @a", config: config, isContinuation: false)
         // The injected blockquote renders as a real one...
         XCTAssertTrue(entry.contains("> Quoting [Somebody](https://twitter.com/a/status/555):"))
-        XCTAssertTrue(entry.contains("> \"quoted line\""))
+        XCTAssertTrue(entry.contains("> quoted line"))
         // ...while a ">" typed in tweet text stays escaped (see escapeMarkdown).
         XCTAssertFalse(entry.contains(EntryComposer.blockquoteMarker))
     }

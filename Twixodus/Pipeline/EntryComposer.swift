@@ -132,7 +132,7 @@ public enum EntryComposer {
     /// The retrieved quoted tweet as a blockquote:
     ///
     ///     > Quoting [unusual_whales from Jan 12](https://twitter.com/...):
-    ///     > "Gen Z has cut down on their effort at work…"
+    ///     > Gen Z has cut down on their effort at work…
     ///
     /// The year is added only when the quoted tweet is from a different year
     /// than the quoting one.
@@ -151,7 +151,7 @@ public enum EntryComposer {
 
         var lines = ["Quoting [\(label)](\(url)):"]
         let text = quote.text.isEmpty ? "…" : quote.text
-        lines.append(contentsOf: "\"\(text)\"".pySplitlines())
+        lines.append(contentsOf: text.pySplitlines())
         return lines.map { blockquoteMarker + $0 }.joined(separator: "\n")
     }
 
