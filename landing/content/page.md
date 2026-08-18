@@ -104,7 +104,7 @@ ollama rm qwen3.5:9b-mlx
 2. **Launch Twixodus** and drop your `twitter-….zip` (or the unpacked folder)
    onto the window.
 3. **Walk through the settings** — journals, whether your account
-   still exists — and press **Start Import**. You can pause or cancel any time;
+   still exists, etc. — and press **Start Import**. You can pause or cancel any time;
    the ledger remembers every imported thread, so the next run picks up where you
    left off.
 4. **Keep the Day One app running** during the import: it's what moves the staged
@@ -116,6 +116,9 @@ If you found this useful, please consider supporting me:
 
 - [Buy me a coffee](https://coff.ee/jonathunky)
 - USDT TRC20: `TKa6wmqpLvMQwacU1wnPgFWZHFaDRV9jFs`
+- [Revolut](https://revolut.me/evgenii69)
+
+I have to notarise this application under my friend's Apple ID, because I don't have access to Apple Developer Program; your donations could change that!
 
 <!-- Parked, not deleted — the README still carries both lists. Move either
      heading above this comment to put it back on the page.

@@ -1,0 +1,68 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.04314,0.05098,0.07451,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Rising Diagonal.svg",
+          "name": "Rising Diagonal"
+        }
+      ],
+      "shadow": {
+        "kind": "layer-color",
+        "opacity": 0.6
+      },
+      "specular": true,
+      "blur-material": 0.3,
+      "translucency": {
+        "enabled": true,
+        "value": 0.8
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "Falling Diagonal.svg",
+          "name": "Falling Diagonal"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.4
+      },
+      "specular": true,
+      "blur-material": 0.25,
+      "translucency": {
+        "enabled": true,
+        "value": 0.6
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "Backdrop.svg",
+          "name": "Backdrop"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.0
+      },
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0.0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": [
+      "macOS"
+    ]
+  }
+}
