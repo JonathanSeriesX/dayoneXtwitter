@@ -1,0 +1,39 @@
+# What there is to watch here:
+#
+#   * landing/ — a Next.js site with a committed pnpm lockfile, so its versions
+#     are frozen until something bumps them. This is the real reason this file
+#     exists: Next and its friends ship security advisories, and the site is
+#     public. Updates are grouped into one PR so it stays one review a month,
+#     with majors kept separate since those are the ones that break a build.
+#   * the workflows — only actions/checkout today, but GitHub retires action
+#     runtimes periodically, and a stale major eventually stops running.
+#
+# The macOS app itself has no dependencies at all: no Package.swift, nothing
+# under `packages:` in project.yml. Nothing to watch there, by design.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /landing
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: landing
+    labels:
+      - dependencies
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: CI
+    labels:
+      - ci

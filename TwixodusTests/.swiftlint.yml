@@ -1,0 +1,4 @@
+# Test-only relaxations. `try!` is the right call in a test: a fixture that
+# can't be built should fail the test loudly, not be handled.
+disabled_rules:
+  - force_try

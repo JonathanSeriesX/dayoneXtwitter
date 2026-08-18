@@ -1,0 +1,45 @@
+# Style check for the Swift sources. Runs on Linux in a pinned SwiftLint
+# container: a few seconds, no Xcode, no macOS runner. Findings appear as
+# inline annotations on the commit or pull request.
+#
+# Compiling and testing deliberately live in release.yml, which runs when a
+# version tag is pushed — a small fix shouldn't spend a build machine.
+
+name: Lint
+
+on:
+  push:
+    paths:
+      - "**/*.swift"
+      - .swiftlint.yml
+      - "**/.swiftlint.yml"
+      - .github/workflows/lint.yml
+  pull_request:
+    paths:
+      - "**/*.swift"
+      - .swiftlint.yml
+      - "**/.swiftlint.yml"
+      - .github/workflows/lint.yml
+  workflow_dispatch:
+
+# A new push supersedes the one before it.
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  swiftlint:
+    name: SwiftLint
+    runs-on: ubuntu-latest
+    container: ghcr.io/realm/swiftlint:0.65.0
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Lint
+        # The config is tuned so a clean tree reports nothing; anything printed
+        # here is new. Warnings annotate without failing the run, real errors
+        # (see .swiftlint.yml) fail it.
+        run: swiftlint lint --reporter github-actions-logging

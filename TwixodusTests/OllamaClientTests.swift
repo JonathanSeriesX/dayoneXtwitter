@@ -73,13 +73,13 @@ final class OllamaClientTests: XCTestCase {
     // MARK: - Server status parsing (the Configure screen's Ollama row)
 
     func testParseModelsReadsNamesSizesAndCapabilities() {
-        let json = """
+        let json = Data("""
         {"models":[
           {"name":"qwen3.5:9b-mlx","size":8903014758,
            "capabilities":["completion","vision","thinking"]},
           {"name":"qwen3:8b","size":5225388164,"capabilities":["completion"]}
         ]}
-        """.data(using: .utf8)!
+        """.utf8)
         let models = OllamaClient.parseModels(json)!
         XCTAssertEqual(models.map(\.name), ["qwen3.5:9b-mlx", "qwen3:8b"])
         XCTAssertEqual(models[0].sizeBytes, 8_903_014_758)

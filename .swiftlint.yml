@@ -1,0 +1,43 @@
+# SwiftLint for Twixodus. The goal is a check that stays green and only speaks
+# up about genuinely new problems — so the rules that merely disagree with this
+# codebase's deliberate style are off, and the ones that catch real mistakes
+# (force casts, unused parameters, redundant code) are left on.
+
+included:
+  - Twixodus
+  - TwixodusTests
+  - tools
+
+disabled_rules:
+  # The pipeline files are long and heavily commented on purpose: one file per
+  # step, with the ported Python behaviour explained inline.
+  - file_length
+  - type_body_length
+  - function_body_length
+  # threadCategory and the loaders are inherently branchy — they mirror the
+  # Python original's decision tree, and splitting them up would obscure it.
+  - cyclomatic_complexity
+  - function_parameter_count
+  - large_tuple
+  # House style, applied consistently: trailing commas in multi-line literals,
+  # `else` on its own line, parens to group a multi-clause condition.
+  - trailing_comma
+  - statement_position
+  - control_statement
+  - for_where
+
+identifier_name:
+  # Short names are fine in a short scope: `for (i, tweet) in`, `let fm = FileManager…`.
+  min_length:
+    warning: 1
+  excluded:
+    - id
+
+line_length:
+  # Code lines stay short by hand; the long ones are UI copy and the LLM
+  # prompt, which read worse wrapped. This is just a guard rail.
+  warning: 250
+  error: 500
+  ignores_comments: true
+  ignores_urls: true
+  ignores_interpolated_strings: true
