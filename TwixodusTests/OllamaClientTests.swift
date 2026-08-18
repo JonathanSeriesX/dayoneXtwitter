@@ -70,4 +70,61 @@ final class OllamaClientTests: XCTestCase {
         let seen = Set((0..<50).map { _ in subject.pickImages(files).joined(separator: ",") })
         XCTAssertGreaterThan(seen.count, 1, "selection should not be deterministic")
     }
+    // MARK: - Server status parsing (the Configure screen's Ollama row)
+
+    func testParseModelsReadsNamesSizesAndCapabilities() {
+        let json = """
+        {"models":[
+          {"name":"qwen3.5:9b-mlx","size":8903014758,
+           "capabilities":["completion","vision","thinking"]},
+          {"name":"qwen3:8b","size":5225388164,"capabilities":["completion"]}
+        ]}
+        """.data(using: .utf8)!
+        let models = OllamaClient.parseModels(json)!
+        XCTAssertEqual(models.map(\.name), ["qwen3.5:9b-mlx", "qwen3:8b"])
+        XCTAssertEqual(models[0].sizeBytes, 8_903_014_758)
+        XCTAssertTrue(models[0].supportsVision)
+        XCTAssertFalse(models[1].supportsVision)
+    }
+
+    func testParseModelsRejectsUnexpectedShape() {
+        XCTAssertNil(OllamaClient.parseModels(Data("not json".utf8)))
+        XCTAssertNil(OllamaClient.parseModels(Data("{}".utf8)))
+    }
+
+    func testResolveModelNormalizesTagAndCase() {
+        let models = [
+            OllamaClient.InstalledModel(name: "qwen3.5:9b-mlx", sizeBytes: 0, capabilities: []),
+            OllamaClient.InstalledModel(name: "llama3:latest", sizeBytes: 0, capabilities: []),
+        ]
+        // Exact, case-insensitive, and the ":latest is implied" rule.
+        XCTAssertNotNil(OllamaClient.resolveModel("qwen3.5:9b-mlx", in: models))
+        XCTAssertNotNil(OllamaClient.resolveModel("QWEN3.5:9B-MLX", in: models))
+        XCTAssertNotNil(OllamaClient.resolveModel("llama3", in: models))
+        XCTAssertNotNil(OllamaClient.resolveModel(" llama3:latest ", in: models))
+        XCTAssertNil(OllamaClient.resolveModel("qwen3.5", in: models),
+                     "no tag means :latest, which isn't the -mlx build")
+        XCTAssertNil(OllamaClient.resolveModel("mistral", in: models))
+    }
+
+    func testParsePullLineProgressErrorAndSuccess() throws {
+        let progress = try OllamaClient.parsePullLine(
+            #"{"status":"pulling 203e300","digest":"sha256:x","total":1000,"completed":250}"#)!
+        XCTAssertEqual(progress.progress.status, "pulling 203e300")
+        XCTAssertEqual(progress.progress.fraction!, 0.25, accuracy: 0.001)
+        XCTAssertEqual(progress.progress.totalBytes, 1000)
+        XCTAssertFalse(progress.done)
+
+        let manifest = try OllamaClient.parsePullLine(#"{"status":"pulling manifest"}"#)!
+        XCTAssertNil(manifest.progress.fraction)
+        XCTAssertFalse(manifest.done)
+
+        let success = try OllamaClient.parsePullLine(#"{"status":"success"}"#)!
+        XCTAssertTrue(success.done)
+
+        XCTAssertNil(try OllamaClient.parsePullLine(""))
+        XCTAssertThrowsError(try OllamaClient.parsePullLine(
+            #"{"error":"pull model manifest: file does not exist"}"#))
+    }
+
 }

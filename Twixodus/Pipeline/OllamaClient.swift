@@ -126,6 +126,130 @@ public final class OllamaClient {
         let message: String
     }
 
+    // MARK: - Server status (the Configure screen's Ollama row)
+
+    /// One model the server has pulled, from /api/tags.
+    public struct InstalledModel {
+        public let name: String
+        public let sizeBytes: Int64
+        public let capabilities: [String]
+
+        public var supportsVision: Bool { capabilities.contains("vision") }
+    }
+
+    /// The server's version, or a thrown error when it isn't reachable.
+    public func serverVersion() async throws -> String {
+        guard let url = URL(string: resolvedHost + "/api/version") else {
+            throw OllamaError(message: "Malformed Ollama host: \(settings.host)")
+        }
+        let (data, _) = try await session.data(from: url)
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        return json?["version"] as? String ?? ""
+    }
+
+    /// The models the server has pulled. Throws when the server is down —
+    /// that's the signal the status row branches on.
+    public func installedModels() async throws -> [InstalledModel] {
+        guard let url = URL(string: resolvedHost + "/api/tags") else {
+            throw OllamaError(message: "Malformed Ollama host: \(settings.host)")
+        }
+        let (data, _) = try await session.data(from: url)
+        guard let models = Self.parseModels(data) else {
+            throw OllamaError(message: "Unexpected /api/tags response shape.")
+        }
+        return models
+    }
+
+    static func parseModels(_ data: Data) -> [InstalledModel]? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let list = json["models"] as? [[String: Any]]
+        else { return nil }
+        return list.compactMap { item in
+            guard let name = item["name"] as? String else { return nil }
+            return InstalledModel(
+                name: name,
+                sizeBytes: (item["size"] as? NSNumber)?.int64Value ?? 0,
+                capabilities: item["capabilities"] as? [String] ?? [])
+        }
+    }
+
+    /// Finds the requested model among the installed ones, by Ollama's naming
+    /// rule: names are case-insensitive and a missing tag means ":latest".
+    public static func resolveModel(_ requested: String, in models: [InstalledModel]) -> InstalledModel? {
+        let wanted = normalizeModelName(requested)
+        return models.first { normalizeModelName($0.name) == wanted }
+    }
+
+    static func normalizeModelName(_ name: String) -> String {
+        let trimmed = name.pyStrip().lowercased()
+        return trimmed.contains(":") ? trimmed : trimmed + ":latest"
+    }
+
+    // MARK: - Pulling a model
+
+    /// One line of /api/pull progress.
+    public struct PullProgress {
+        public let status: String
+        /// completed/total of the layer being downloaded, when known.
+        public let fraction: Double?
+        public let completedBytes: Int64?
+        public let totalBytes: Int64?
+    }
+
+    /// Parses one streamed /api/pull line. Returns nil for blank lines and
+    /// noise, throws for a server-reported error, and flags the "success"
+    /// line that ends the pull.
+    static func parsePullLine(_ line: String) throws -> (progress: PullProgress, done: Bool)? {
+        guard let data = line.data(using: .utf8),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else { return nil }
+        if let error = json["error"] as? String {
+            throw OllamaError(message: error)
+        }
+        let status = json["status"] as? String ?? ""
+        var fraction: Double?
+        var completed: Int64?
+        var total: Int64?
+        if let totalNumber = json["total"] as? NSNumber, totalNumber.int64Value > 0 {
+            total = totalNumber.int64Value
+            completed = (json["completed"] as? NSNumber)?.int64Value ?? 0
+            fraction = Double(completed!) / Double(total!)
+        }
+        return (PullProgress(status: status, fraction: fraction,
+                             completedBytes: completed, totalBytes: total),
+                status == "success")
+    }
+
+    /// Downloads the configured model through the server (`ollama pull`),
+    /// reporting progress line by line. Cancelling the surrounding Task stops
+    /// the download; Ollama keeps the finished layers, so a retry resumes.
+    public func pullModel(progress: @escaping (PullProgress) -> Void) async throws {
+        guard let url = URL(string: resolvedHost + "/api/pull") else {
+            throw OllamaError(message: "Malformed Ollama host: \(settings.host)")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "model": settings.model, "stream": true,
+        ])
+        // A pull can run for an hour; only stalls should time it out.
+        request.timeoutInterval = 300
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 300
+        let pullSession = URLSession(configuration: configuration)
+
+        let (bytes, _) = try await pullSession.bytes(for: request)
+        for try await line in bytes.lines {
+            try Task.checkCancellation()
+            guard let parsed = try Self.parsePullLine(line) else { continue }
+            progress(parsed.progress)
+            if parsed.done { return }
+        }
+        throw OllamaError(message: "The download ended before the model was complete.")
+    }
+
     /// Runs one completion, retrying without the thinking flag if the model
     /// doesn't support it.
     private func generate(prompt: String, images: [String]) async throws -> String {

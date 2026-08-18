@@ -8,6 +8,7 @@ struct ConfigureStepView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: AppSettings
     @State private var confirmReset = false
+    @StateObject private var ollamaStatus = OllamaStatusController()
 
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -246,6 +247,11 @@ struct ConfigureStepView: View {
         Section {
             Toggle("Title entries with a local LLM", isOn: $settings.llmTitlesEnabled)
             if settings.llmTitlesEnabled {
+                ollamaStatusRow
+                    .task(id: "\(settings.ollamaHost)|\(settings.ollamaModelName)") {
+                        await ollamaStatus.watch(
+                            host: settings.ollamaHost, model: settings.ollamaModelName)
+                    }
                 Toggle("Also title standalone tweets (slower)", isOn: $settings.llmTitlesForSingleTweets)
                 TextField("Ollama server", text: $settings.ollamaHost)
                 TextField("Model", text: $settings.ollamaModelName)
@@ -263,11 +269,126 @@ struct ConfigureStepView: View {
             Text("AI titles")
         } footer: {
             if settings.llmTitlesEnabled {
-                Text("Needs [Ollama](https://ollama.com) running with the model pulled, e.g. `ollama pull \(settings.ollamaModelName)`. Titles come out like “Expressed frustration at airport security”; when the model isn't sure, the plain category title is kept.")
+                Text("Titles come out like “Expressed frustration at airport security”; when the model isn't sure — or Ollama isn't reachable — the plain category title is kept, and the import carries on either way.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// One live row saying whether titles will actually work: server up, model
+    /// pulled — with the fix a click away when not. Updates by itself (see
+    /// OllamaStatusController.watch).
+    @ViewBuilder
+    private var ollamaStatusRow: some View {
+        switch ollamaStatus.state {
+        case .unknown, .checking:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Checking Ollama…")
+                    .foregroundStyle(.secondary)
+            }
+
+        case .ready(let model, let vision, let version):
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Ollama\(version.isEmpty ? "" : " \(version)") is serving \(model)",
+                      systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                note(vision
+                    ? "The model has vision — attached photos are shown to it when titling."
+                    : "This model can't see images — titles come from the tweet text alone.")
+            }
+
+        case .modelMissing(let requested, let installed):
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Ollama is running, but “\(requested)” isn't pulled",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                if !installed.isEmpty {
+                    note("Pulled so far: \(installed.joined(separator: ", ")) — type one of "
+                        + "those into the Model field, or download the one you asked for.")
+                }
+                HStack {
+                    Button("Download \(requested)") { ollamaStatus.pull() }
+                        .secondaryActionButtonStyle()
+                    note("…or run `ollama pull \(requested)` in Terminal.")
+                }
+            }
+
+        case .pulling(let status, let fraction, let completed, let total):
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    if let fraction {
+                        ProgressView(value: fraction)
+                        Text(pullByteCount(completed: completed, total: total))
+                            .font(.footnote.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
+                    Button("Cancel") { ollamaStatus.cancelPull() }
+                        .secondaryActionButtonStyle()
+                }
+                note("\(status.prefix(1).uppercased() + status.dropFirst()) — safe to cancel, "
+                    + "the download resumes where it left off.")
+            }
+
+        case .pullFailed(let message):
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Download failed: \(message)", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                HStack {
+                    Button("Try Again") { ollamaStatus.pull() }
+                        .secondaryActionButtonStyle()
+                    Button("Dismiss") { ollamaStatus.dismissFailure() }
+                        .secondaryActionButtonStyle()
+                }
+            }
+
+        case .notRunning(.app):
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Ollama is installed but isn't running", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                HStack {
+                    Button("Launch Ollama") { ollamaStatus.launchApp() }
+                        .secondaryActionButtonStyle()
+                    note("This row turns green by itself once the server is up.")
+                }
+            }
+
+        case .notRunning(.cli(let path)):
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Ollama is installed but isn't running", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                note("Start it with `ollama serve` in Terminal (found at \(path)) — "
+                    + "this row updates by itself.")
+            }
+
+        case .notRunning(.notInstalled):
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Ollama isn't installed", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Link("Get Ollama", destination: URL(string: "https://ollama.com/download")!)
+                    .font(.footnote)
+                note("Install the app and open it once — this row updates by itself. "
+                    + "Or turn AI titles off; entries then keep their plain category titles.")
+            }
+
+        case .notRunning(.remote(let host)):
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Can't reach the Ollama server at \(host)", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                note("Check that the server is running and the address is right — "
+                    + "this row keeps retrying by itself.")
+            }
+        }
+    }
+
+    private func pullByteCount(completed: Int64?, total: Int64?) -> String {
+        guard let completed, let total else { return "" }
+        let format = ByteCountFormatter()
+        format.countStyle = .file
+        return "\(format.string(fromByteCount: completed)) of \(format.string(fromByteCount: total))"
     }
 
     private var debugSection: some View {
