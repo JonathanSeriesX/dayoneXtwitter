@@ -87,8 +87,12 @@ struct PyRegex {
 
     init(_ pattern: String, options: NSRegularExpression.Options = []) {
         // Patterns are compile-time constants ported from the Python source;
-        // a failure here is a programmer error.
-        regex = try! NSRegularExpression(pattern: pattern, options: options)
+        // a failure here is a programmer error — but let the crash log name
+        // the offending pattern instead of a bare try!.
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
+            preconditionFailure("PyRegex: invalid pattern \(pattern)")
+        }
+        self.regex = regex
     }
 
     /// re.match — anchored at the start; returns the matched groups.

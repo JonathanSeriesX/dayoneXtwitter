@@ -104,8 +104,11 @@ public enum ThreadCategorizer {
         return displayName(nameMap, handle)
     }
 
+    /// Matches status links across the site's eras: twitter.com and x.com,
+    /// the mobile. subdomain, the 2010s "#!/" hashbang paths, and the old
+    /// "/statuses/" form — all of which appear in real archives.
     private static let quoteStatusRegex =
-        PyRegex(#"^https?://(?:www\.)?(?:twitter\.com|x\.com)/([^/]+)/status/(\d+)"#)
+        PyRegex(#"^https?://(?:www\.|mobile\.)?(?:twitter\.com|x\.com)/(?:#!/)?([^/]+)/status(?:es)?/(\d+)"#)
 
     /// If the tweet is a quote-tweet, finds the quoted status URL in
     /// entities.urls and returns ("@somebody", "12345").
@@ -137,6 +140,28 @@ public enum ThreadCategorizer {
             return "myself"
         }
         return handle
+    }
+
+    private static let inlineRetweetHandleRegex = PyRegex(#"(?s)\bRT\s+["]?@([A-Za-z0-9_]+)"#)
+
+    /// Last-ditch name recovery for old-style manual retweets whose structure
+    /// defeats the stricter extractors (e.g. no colon after the handle):
+    /// grabs the first @handle following an "RT" marker, reading the text
+    /// without mutating it. Returns nil when the RT names nobody ("RT : …").
+    private static func inlineRetweetHandle(_ tweet: Tweet) -> String? {
+        inlineRetweetHandleRegex.search(tweet.fullText).flatMap { $0.group(1) }
+    }
+
+    /// Names the quoted author when there is no parseable status URL — the
+    /// pre-quote-tweet era's manual "… RT @user: …" quotes. Falls back to
+    /// "someone" so the title never reads "Quoted None".
+    private static func fallbackQuoteTarget(_ tweet: Tweet, context: Context) -> String {
+        guard let handle = inlineRetweetHandle(tweet) else { return "someone" }
+        if let username = context.currentUsername, !username.isEmpty,
+           handle.lowercased() == username.lowercased() {
+            return "myself"
+        }
+        return "@\(handle)"
     }
 
     private static let handleRegex = PyRegex(#"@([A-Za-z0-9_]+)"#)
@@ -213,27 +238,36 @@ public enum ThreadCategorizer {
 
         // A single tweet starting with "RT @", and not part of a larger thread, is a retweet.
         if isRetweet {
-            let name = extractRetweetInPlace(first)
-            return "Retweeted \(name ?? "None")"  // "None": faithful to the Python original
+            if let name = extractRetweetInPlace(first) {
+                return "Retweeted \(name)"
+            }
+            // The strict extractor failed (no colon after the handle, say) —
+            // recover the handle read-only so the title still names someone.
+            if let handle = inlineRetweetHandle(first) {
+                return "Retweeted \(displayName(caseInsensitiveNameMap(first), handle))"
+            }
+            return "Retweeted someone"
         }
 
         // A tweet with a non-media Twitter/X link and not a reply is a quote tweet.
         if hasNonMediaTwitterLink && !isReply {
             let name = describeQuoteTarget(first, context: context)
-            return "Quoted \(name ?? "None")"
+            return "Quoted \(name ?? fallbackQuoteTarget(first, context: context))"
         }
 
         if first.fullText.contains(" RT @") {
             let name = describeQuoteTarget(first, context: context)
-            return "Quoted \(name ?? "None")"
+            return "Quoted \(name ?? fallbackQuoteTarget(first, context: context))"
         }
 
         if isReply {
             return replyCategory(first)
         }
 
-        if isCallout {
-            return "Callout to \(extractCallouts(first) ?? "[]")"
+        // A bare "@" with nothing readable after it isn't a callout — it's
+        // just a tweet that happens to start with the character. Fall through.
+        if isCallout, let callouts = extractCallouts(first) {
+            return "Callout to \(callouts)"
         }
 
         // A thread with more than one tweet is always a thread of one's own.
