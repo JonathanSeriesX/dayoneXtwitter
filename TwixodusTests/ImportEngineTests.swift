@@ -10,7 +10,7 @@ import XCTest
 /// success once the script runs out) and records every call.
 private final class MockPoster: EntryPosting {
     var results: [Bool]
-    private(set) var calls: [(text: String, journal: String?, attachments: [String])] = []
+    private(set) var calls: [(text: String, journal: String?, attachments: [String], date: Date?)] = []
     /// Invoked after each call with the 1-based call number — used by the
     /// cancellation tests to cancel mid-run.
     var onCall: ((Int) -> Void)?
@@ -24,7 +24,7 @@ private final class MockPoster: EntryPosting {
         coordinate: (latitude: Double, longitude: Double)?, attachments: [String]
     ) -> Bool {
         let result = calls.count < results.count ? results[calls.count] : true
-        calls.append((text: text, journal: journal, attachments: attachments))
+        calls.append((text: text, journal: journal, attachments: attachments, date: date))
         onCall?(calls.count)
         return result
     }
@@ -107,6 +107,60 @@ final class ImportEngineTests: XCTestCase {
         for id in ids {
             ledger.rememberProcessed(tweetId: id, reimportMarker: nil, processedIDs: &seen)
         }
+    }
+
+    // MARK: - Attachment-limit splitting
+
+    /// A thread over Day One's 30-attachment cap becomes several entries: same
+    /// date, "(continued)" titles, every part within the cap — and exactly one
+    /// ledger line for the whole thread.
+    func testMediaHeavyThreadIsSplitIntoContinuationEntries() async {
+        let thread = (1...11).map { i -> Tweet in
+            let t = makeTweet("\(i)", date: PipelineDates.date(2020, 5, 1, 10, i, 0),
+                              text: "tweet number \(i)")
+            t.mediaFiles = (0..<4).map { "/tmp/\(i)-\($0).jpg" }  // 44 total
+            return t
+        }
+
+        let poster = MockPoster()
+        let result = await makeEngine(threadsConfig: makeConfig(), poster: poster)
+            .run(threads: [thread])
+
+        XCTAssertEqual(result.importedCount, 1)
+        XCTAssertEqual(poster.calls.count, 2)
+
+        // Balanced 5 + 6 split, both under the cap.
+        XCTAssertEqual(poster.calls.map(\.attachments.count), [20, 24])
+
+        // First part carries the real title; the rest are continuations.
+        XCTAssertTrue(poster.calls[0].text.hasPrefix("# Wrote a thread\n"), poster.calls[0].text)
+        XCTAssertTrue(poster.calls[1].text.hasPrefix("# Wrote a thread (continued)\n"), poster.calls[1].text)
+        XCTAssertTrue(poster.calls[0].text.contains("tweet number 1"))
+        XCTAssertTrue(poster.calls[1].text.contains("tweet number 6"))
+
+        // Both parts share the thread's start date, and the thread is recorded
+        // once, so a re-run skips it entirely.
+        XCTAssertEqual(poster.calls[0].date, poster.calls[1].date)
+        XCTAssertEqual(poster.calls[0].date, PipelineDates.date(2020, 5, 1, 10, 1, 0))
+        XCTAssertEqual(ledger.loadProcessedIDs(), ["1"])
+    }
+
+    /// When a later part fails, the thread stays unrecorded so the retry gets
+    /// another chance at the whole thing.
+    func testFailedContinuationLeavesThreadUnrecorded() async {
+        let thread = (1...11).map { i -> Tweet in
+            let t = makeTweet("\(i)")
+            t.mediaFiles = (0..<4).map { "/tmp/\(i)-\($0).jpg" }
+            return t
+        }
+
+        let poster = MockPoster(results: [true, false])  // part 2 fails
+        let result = await makeEngine(threadsConfig: makeConfig(), poster: poster)
+            .run(threads: [thread])
+
+        XCTAssertEqual(result.importedCount, 0)
+        XCTAssertEqual(result.failedCount, 1)
+        XCTAssertEqual(ledger.loadProcessedIDs(), [])
     }
 
     // MARK: - Debug mode

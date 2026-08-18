@@ -61,19 +61,28 @@ public final class OllamaClient {
 
     private static let imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
 
-    /// Selects up to maxImages existing image attachments (videos and missing
-    /// files are skipped) to show the model alongside the tweet text.
+    /// Selects the image attachments to show the model alongside the tweet
+    /// text; videos and missing files are skipped.
+    ///
+    /// Threads over the cap contribute a random sample rather than their first
+    /// N images. Prompt-processing time scales with total pixel count — the
+    /// archive's biggest thread, 26 full-size images, measured ~30k tokens and
+    /// 80s of prefill on qwen3.5:9b-mlx, past the request timeout — and a photo
+    /// dump's opening images are often near-duplicates, so taking the first N
+    /// is both the slowest option and the least representative one. The sample
+    /// is returned in thread order so the model still reads it as a sequence.
     func pickImages(_ mediaFiles: [String]) -> [String] {
-        var images: [String] = []
-        for path in mediaFiles {
-            if images.count >= settings.maxImages { break }
+        guard settings.maxImages > 0 else { return [] }
+        let eligible = mediaFiles.filter { path in
             let lower = path.lowercased()
-            if Self.imageExtensions.contains(where: { lower.hasSuffix($0) }),
-               FileManager.default.fileExists(atPath: path) {
-                images.append(path)
-            }
+            return Self.imageExtensions.contains(where: { lower.hasSuffix($0) })
+                && FileManager.default.fileExists(atPath: path)
         }
-        return images
+        guard eligible.count > settings.maxImages else { return eligible }
+        return eligible.indices.shuffled()
+            .prefix(settings.maxImages)
+            .sorted()
+            .map { eligible[$0] }
     }
 
     /// Cleans up a model-produced title; returns nil when the model declined

@@ -257,7 +257,9 @@ public struct ImportConfig {
 
     public var processTitlesWithLLM: Bool
     public var llmTitlesForSingleTweets: Bool
-    /// How many attached images to show the LLM per entry (0 to disable vision).
+    /// How many attached images to show the LLM per entry (0 to disable
+    /// vision). Entries with more images than this contribute a random
+    /// sample of that many, since prefill time scales with pixel count.
     public var llmMaxImages: Int
     public var ollamaHost: String
     public var ollamaModelName: String
@@ -279,10 +281,10 @@ public struct ImportConfig {
         lastCoveredThrough: Date? = nil,
         processTitlesWithLLM: Bool = false,
         llmTitlesForSingleTweets: Bool = true,
-        llmMaxImages: Int = 26,
+        llmMaxImages: Int = 10,
         ollamaHost: String = "http://localhost:11434",
         ollamaModelName: String = "qwen3.5:9b-mlx",
-        ollamaTimeout: TimeInterval = 60,
+        ollamaTimeout: TimeInterval = 120,
         ollamaTitlePrompt: String = ImportConfig.defaultTitlePrompt
     ) {
         self.journalName = journalName

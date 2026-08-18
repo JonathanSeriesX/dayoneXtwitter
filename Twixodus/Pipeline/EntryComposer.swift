@@ -174,8 +174,14 @@ public enum EntryComposer {
     /// — for own tweets — the "Sent from <client>" footer.
     public static func buildEntryContent(
         entryText: String, firstTweet: Tweet, category: String, title: String,
-        config: ImportConfig
+        config: ImportConfig, isContinuation: Bool = false
     ) -> String {
+        // A continuation part of a split thread carries just the tweets — the
+        // reply context and the client footer live on the first part.
+        if isContinuation {
+            return escapeMarkdown("# \(title)\n\n\(entryText)\n\n")
+        }
+
         var entryText = entryText
 
         if let replyToId = firstTweet.inReplyToStatusIdStr {

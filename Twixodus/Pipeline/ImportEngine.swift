@@ -332,11 +332,6 @@ public final class ImportEngine {
             }
             return generated
         }
-        let entryText = EntryComposer.buildEntryContent(
-            entryText: content.text, firstTweet: firstTweet, category: category,
-            title: title, config: config
-        )
-
         guard let targetJournal = EntryComposer.targetJournal(
             category: category, tweetId: tweetId, config: config,
             log: { self.log($0) }
@@ -347,20 +342,43 @@ public final class ImportEngine {
             return .skippedNoJournal
         }
 
-        // Step 6: hand the entry to the Day One CLI.
-        callbacks.activity("Saving to “\(targetJournal)”: \(title)")
-        let posted = dayOne.addPost(
-            text: entryText,
-            journal: targetJournal,
-            tags: Array(Set(content.tags)),
-            date: content.date,
-            coordinate: content.coordinate,
-            attachments: content.mediaFiles
-        )
-        guard posted else {
-            log("Couldn't save thread \(tweetId) to Day One — it stays unrecorded, "
-                + "so the next run will retry it.", .error)
-            return .failed
+        // Step 6: hand the entry to the Day One CLI — as several entries when
+        // the thread carries more attachments than Day One accepts in one.
+        let parts = ThreadSplitter.split(thread)
+        if parts.count > 1 {
+            log("Thread \(tweetId) carries \(content.mediaFiles.count) attachments — "
+                + "more than Day One's \(ThreadSplitter.maxAttachmentsPerEntry) per entry, "
+                + "so it becomes \(parts.count) entries sharing the same date.")
+        }
+        for (index, part) in parts.enumerated() {
+            let partTitle = index == 0 ? title : "\(title) (continued)"
+            let partContent = parts.count == 1
+                ? content : EntryComposer.aggregateThreadData(part, config: config)
+            let entryText = EntryComposer.buildEntryContent(
+                entryText: partContent.text, firstTweet: firstTweet, category: category,
+                title: partTitle, config: config, isContinuation: index > 0
+            )
+            callbacks.activity("Saving to “\(targetJournal)”: \(partTitle)")
+            let posted = dayOne.addPost(
+                text: entryText,
+                journal: targetJournal,
+                tags: Array(Set(partContent.tags)),
+                // Every part carries the thread's start date, so the parts sit
+                // together in the journal.
+                date: content.date,
+                coordinate: partContent.coordinate,
+                attachments: partContent.mediaFiles
+            )
+            guard posted else {
+                if index > 0 {
+                    log("The first \(index) part(s) of thread \(tweetId) were already "
+                        + "saved — the retry will post them again; delete the extra copies.",
+                        .warning)
+                }
+                log("Couldn't save thread \(tweetId) to Day One — it stays unrecorded, "
+                    + "so the next run will retry it.", .error)
+                return .failed
+            }
         }
 
         recordProcessed(tweetId: tweetId, reimportMarker: reimportMarker,

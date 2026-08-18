@@ -79,7 +79,7 @@ final class AppSettings: ObservableObject {
     @AppStorage("llmTitlesForSingleTweets") var llmTitlesForSingleTweets = true
     @AppStorage("ollamaHost") var ollamaHost = "http://localhost:11434"
     @AppStorage("ollamaModelName") var ollamaModelName = "qwen3.5:9b-mlx"
-    @AppStorage("ollamaTimeout") var ollamaTimeout = 60
+    @AppStorage("ollamaTimeoutSeconds") var ollamaTimeout = 120
     @AppStorage("ollamaTitlePrompt") var ollamaTitlePrompt = ImportConfig.defaultTitlePrompt
 
     // MARK: - Pipeline config
@@ -110,8 +110,9 @@ final class AppSettings: ObservableObject {
             endDate: Self.utcDay(endDate, endOfDay: true),
             processTitlesWithLLM: llmTitlesEnabled,
             llmTitlesForSingleTweets: llmTitlesForSingleTweets,
-            // Every attached image goes to the model — no reason to hold back.
-            llmMaxImages: Int.max,
+            // Past ten images the extra ones cost prefill time without
+            // sharpening a 3-to-8-word title; over the cap a random sample goes.
+            llmMaxImages: 10,
             ollamaHost: ollamaHost,
             ollamaModelName: ollamaModelName,
             ollamaTimeout: TimeInterval(ollamaTimeout),
