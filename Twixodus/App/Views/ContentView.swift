@@ -16,6 +16,8 @@ struct ContentView: View {
                 DropStepView()
             case .configure:
                 ConfigureStepView()
+            case .retrieve:
+                RetrieveStepView()
             case .importing:
                 ImportStepView()
             case .done:
@@ -26,7 +28,7 @@ struct ContentView: View {
     }
 }
 
-/// The 1-2-3-4 breadcrumb across the top of the window.
+/// The 1-2-3-4-5 breadcrumb across the top of the window.
 private struct StepHeader: View {
     let current: AppModel.Step
 
@@ -47,7 +49,7 @@ private struct StepHeader: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Step \(current.rawValue + 1) of 4: \(current.title)")
+        .accessibilityLabel("Step \(current.rawValue + 1) of \(AppModel.Step.allCases.count): \(current.title)")
     }
 
     @ViewBuilder

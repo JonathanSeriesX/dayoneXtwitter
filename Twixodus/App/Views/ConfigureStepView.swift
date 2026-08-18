@@ -1,5 +1,6 @@
 // Step 2 of the flow: everything config.py used to be, as a form. The
 // archive summary sits on top so the user can sanity-check what was loaded.
+// Continue leads to the Retrieve step; the import itself starts from there.
 
 import SwiftUI
 
@@ -32,15 +33,10 @@ struct ConfigureStepView: View {
                 Button("Back") { model.startOver() }
                     .secondaryActionButtonStyle()
                 Spacer()
-                if model.dayOneBinary == nil {
-                    Label("Install the Day One CLI to start", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.callout)
-                }
-                Button(startButtonTitle) { model.startImport() }
+                Button("Continue") { model.goToRetrieve() }
                     .primaryActionButtonStyle()
                     .keyboardShortcut(.defaultAction)
-                    .disabled(model.dayOneBinary == nil || journalNameInvalid || nothingToImport)
+                    .disabled(journalNameInvalid)
             }
             .padding(14)
         }
@@ -55,19 +51,6 @@ struct ConfigureStepView: View {
 
     private var journalNameInvalid: Bool {
         settings.journalName.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
-    private var nothingToImport: Bool {
-        model.importPreview?.pending == 0
-    }
-
-    /// "Start Import" for a fresh account; "Continue Import" when an earlier
-    /// run didn't finish; "Import What's New" for a newer archive delta.
-    private var startButtonTitle: String {
-        guard let preview = model.importPreview,
-              preview.alreadyImported > 0, preview.pending > 0
-        else { return "Start Import" }
-        return model.lastCoveredDate == nil ? "Continue Import" : "Import What's New"
     }
 
     /// A setting's explanatory note. Stack it with the setting in one row, so

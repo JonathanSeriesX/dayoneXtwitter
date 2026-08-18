@@ -52,7 +52,7 @@ public final class ImportControl {
 
 public enum ImportLogKind {
     case info
-    case thread  // a tweet-by-tweet preview of the thread being imported
+    case thread  // the title line that opens each entry's log block
     case success
     case warning
     case error
@@ -311,7 +311,6 @@ public final class ImportEngine {
             category = ThreadCategorizer.threadCategory(thread, context: context)
             categoryCache.categories[tweetId] = category
         }
-        logThreadPreview(thread, category: category)
 
         // Step 5b: compose the entry.
         let content = EntryComposer.aggregateThreadData(thread, config: config)
@@ -326,11 +325,7 @@ public final class ImportEngine {
             config: config
         ) { [ollama] text, media in
             guard let ollama else { return nil }
-            let generated = await ollama.generateTitle(entryText: text, mediaFiles: media)
-            if let generated {
-                self.log("Title: \(generated)")
-            }
-            return generated
+            return await ollama.generateTitle(entryText: text, mediaFiles: media)
         }
         guard let targetJournal = EntryComposer.targetJournal(
             category: category, tweetId: tweetId, config: config,
@@ -344,6 +339,12 @@ public final class ImportEngine {
 
         // Step 6: hand the entry to the Day One CLI — as several entries when
         // the thread carries more attachments than Day One accepts in one.
+        logEntryHeader(
+            title: title,
+            date: content.date ?? firstTweet.createdAt,
+            attachments: content.mediaFiles.count
+        )
+
         let parts = ThreadSplitter.split(thread)
         if parts.count > 1 {
             log("Thread \(tweetId) carries \(content.mediaFiles.count) attachments — "
@@ -377,9 +378,11 @@ public final class ImportEngine {
                 }
                 log("Couldn't save thread \(tweetId) to Day One — it stays unrecorded, "
                     + "so the next run will retry it.", .error)
+                callbacks.log("", .info)
                 return .failed
             }
         }
+        callbacks.log("", .info)
 
         recordProcessed(tweetId: tweetId, reimportMarker: reimportMarker,
                         processedIDs: &processedIDs)
@@ -415,17 +418,16 @@ public final class ImportEngine {
         }
     }
 
-    /// Logs the thread being imported, tweet by tweet.
-    private func logThreadPreview(_ thread: TweetThread, category: String) {
-        let header = thread.count > 1
-            ? "— \(category) (\(thread.count) tweets)"
-            : "— \(category)"
-        callbacks.log(header, .thread)
+    private static let entryDateFormatter = PipelineDates.formatter("dd MMMM yyyy, HH:mm")
 
-        for (j, tweet) in thread.enumerated() {
-            let indent = j > 0 ? "    " : "  "
-            callbacks.log("\(indent)\(tweet.fullText)", .thread)
-        }
+    /// The block written to the log for one entry: what it is called, when the
+    /// thread was posted, and how much media rides along. The Day One CLI adds
+    /// its own "Success:" line right after, and the entry ends with a blank
+    /// line — the tweet text itself stays out of the log.
+    private func logEntryHeader(title: String, date: Date, attachments: Int) {
+        callbacks.log("Title: \(title)", .thread)
+        callbacks.log("Tweeted on: \(Self.entryDateFormatter.string(from: date))", .info)
+        callbacks.log("Attachments: \(attachments)", .info)
     }
 
     // MARK: - Pause / cancel plumbing

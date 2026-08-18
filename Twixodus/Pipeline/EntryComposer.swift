@@ -61,6 +61,11 @@ public enum EntryComposer {
                 ? XcancelLinks.rewriteTweetLinks(in: tweet.fullText)
                 : tweet.fullText) + "\n\n"
 
+            if let quote = tweet.hydratedQuote {
+                entryText += quoteBlock(quote, quotingDate: currentTweetDate,
+                                        useXcancelLinks: config.useXcancelLinks) + "\n\n"
+            }
+
             var metrics: [String] = []
             let likes = tweet.favoriteCount
             let retweets = tweet.retweetCount
@@ -114,6 +119,42 @@ public enum EntryComposer {
         )
     }
 
+    /// Marks a line as a real blockquote line. escapeMarkdown() escapes every
+    /// ">" the TWEET text starts a line with (a tweet must never format the
+    /// entry) — this private-use character smuggles our own, intentional
+    /// blockquotes past it, and buildEntryContent turns it into "> " at the
+    /// very end.
+    static let blockquoteMarker = "\u{E000}"
+
+    private static let quoteDateSameYear = PipelineDates.formatter("MMM d")
+    private static let quoteDateOtherYear = PipelineDates.formatter("MMM d, yyyy")
+
+    /// The retrieved quoted tweet as a blockquote:
+    ///
+    ///     > Quoting [unusual_whales from Jan 12](https://twitter.com/...):
+    ///     > "Gen Z has cut down on their effort at work…"
+    ///
+    /// The year is added only when the quoted tweet is from a different year
+    /// than the quoting one.
+    static func quoteBlock(_ quote: HydratedQuote, quotingDate: Date, useXcancelLinks: Bool) -> String {
+        let host = useXcancelLinks ? XcancelLinks.host : "twitter.com"
+        let url = "https://\(host)/\(quote.screenName)/status/\(quote.statusId)"
+
+        var label = quote.name
+        if let date = quote.createdAt {
+            let calendar = PipelineDates.utcCalendar
+            let sameYear = calendar.component(.year, from: date)
+                == calendar.component(.year, from: quotingDate)
+            let formatter = sameYear ? quoteDateSameYear : quoteDateOtherYear
+            label += " from \(formatter.string(from: date))"
+        }
+
+        var lines = ["Quoting [\(label)](\(url)):"]
+        let text = quote.text.isEmpty ? "…" : quote.text
+        lines.append(contentsOf: "\"\(text)\"".pySplitlines())
+        return lines.map { blockquoteMarker + $0 }.joined(separator: "\n")
+    }
+
     /// Generates the title for the Day One entry, optionally using an LLM.
     ///
     /// The LLM produces a full action phrase ("Expressed frustration at airport
@@ -132,6 +173,9 @@ public enum EntryComposer {
         config: ImportConfig,
         llmTitle: (String, [String]) async -> String?
     ) async -> String {
+        // The blockquote marker is an internal encoding — the LLM gets
+        // readable quotes.
+        let entryText = entryText.replacingOccurrences(of: blockquoteMarker, with: "> ")
         if !config.processTitlesWithLLM { return category }
         if category.hasPrefix("Replied to") { return category }
 
@@ -211,6 +255,7 @@ public enum EntryComposer {
         }
 
         return escapeMarkdown("# \(title)\n\n\(entryText)\n\n")
+            .replacingOccurrences(of: blockquoteMarker, with: "> ")
     }
 
     /// Determines the target journal for the entry, or nil to skip it

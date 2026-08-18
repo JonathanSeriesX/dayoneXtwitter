@@ -59,6 +59,20 @@ public final class Tweet {
     /// Absolute paths of the archived media files, filled by LinkExpansion.
     public var mediaFiles: [String] = []
 
+    /// Flags set at archive load from the RAW text, before any rewriting —
+    /// the pipeline later mutates fullText in place (LinkExpansion, the
+    /// categorizer's RT-prefix strip), so "is this a retweet?" can't be
+    /// re-derived from the text once it has been through the pipeline.
+    public var isRetweet = false
+    /// A retweet the archive cut at 140 chars. These also lost their media
+    /// entities entirely — the Retrieve step can recover both.
+    public var isTruncatedRetweet = false
+
+    /// The retrieved content of the tweet this one quotes, set by
+    /// HydrationOverlay; EntryComposer renders it as a blockquote after the
+    /// tweet's own text.
+    public var hydratedQuote: HydratedQuote?
+
     public init(
         idStr: String,
         fullText: String,
@@ -93,6 +107,26 @@ public final class Tweet {
         self.coordinate = coordinate
     }
 
+}
+
+/// A retrieved quoted tweet, ready for rendering (see HydrationOverlay for
+/// how it's built and EntryComposer.quoteBlock for how it's shown).
+public struct HydratedQuote {
+    public let statusId: String
+    public let screenName: String
+    /// Display name, falling back to "@handle".
+    public let name: String
+    public let createdAt: Date?
+    /// Cleaned text: links expanded to Markdown, media t.co links dropped.
+    public let text: String
+
+    public init(statusId: String, screenName: String, name: String, createdAt: Date?, text: String) {
+        self.statusId = statusId
+        self.screenName = screenName
+        self.name = name
+        self.createdAt = createdAt
+        self.text = text
+    }
 }
 
 /// One entities.urls item: a t.co link and where it really points.

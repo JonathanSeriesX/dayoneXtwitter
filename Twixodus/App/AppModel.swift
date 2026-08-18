@@ -1,6 +1,6 @@
-// The app's state machine: drop → configure → import → done. Owns the loaded
-// archive, drives the import engine on a background task, and relays its
-// progress to the UI.
+// The app's state machine: drop → configure → retrieve → import → done. Owns
+// the loaded archive, drives the retrieval and import engines on background
+// tasks, and relays their progress to the UI.
 
 import AppKit
 import Foundation
@@ -18,6 +18,7 @@ final class AppModel: ObservableObject {
     enum Step: Int, CaseIterable {
         case drop = 0
         case configure
+        case retrieve
         case importing
         case done
 
@@ -25,6 +26,7 @@ final class AppModel: ObservableObject {
             switch self {
             case .drop: return "Archive"
             case .configure: return "Configure"
+            case .retrieve: return "Retrieve"
             case .importing: return "Import"
             case .done: return "Done"
             }
@@ -61,6 +63,17 @@ final class AppModel: ObservableObject {
     /// Whether a ledger or history file exists for this account — gates the
     /// "reset previous run data" button.
     @Published var hasPreviousRunData = false
+
+    // MARK: - Retrieval run (the Retrieve step)
+
+    @Published var hydrationPlan: HydrationPlan?
+    @Published var isRetrieving = false
+    @Published var retrieveDone = 0
+    @Published var retrieveTotal = 0
+    /// One-line summary of the last completed retrieval run, for the UI.
+    @Published var retrieveSummary: String?
+    private(set) var hydrationStore: HydrationStore?
+    private var retrieveTask: Task<Void, Never>?
 
     let settings = AppSettings()
     let control = ImportControl()
@@ -124,11 +137,123 @@ final class AppModel: ObservableObject {
         archive = loaded
         categoryCache = ImportEngine.CategoryCache()
         runResult = nil
+        retrieveSummary = nil
+        hydrationStore = {
+            let store = HydrationStore(for: loaded.ref)
+            if store.exists { store.load() }
+            return store
+        }()
         lastCoveredDate = ImportHistory(accountId: loaded.accountId).load()?.coveredThrough
         refreshImportPreview()
 
         refreshDayOneBinary()
         step = .configure
+    }
+
+    // MARK: - The Retrieve step
+
+    func goToRetrieve() {
+        guard !isImporting, !isRetrieving else { return }
+        refreshHydrationPlan()
+        step = .retrieve
+    }
+
+    /// Rescans the archive against the hydration store. Cheap enough to run
+    /// per event (step entered, run finished), like refreshImportPreview.
+    func refreshHydrationPlan() {
+        guard let archive, let hydrationStore else {
+            hydrationPlan = nil
+            return
+        }
+        // The "Specific tweets only" debug list narrows retrieval the same
+        // way it narrows the import, so a test run stays a test run.
+        var tweets = archive.tweets
+        let debugIDs = settings.debugTweetIDs
+        if !debugIDs.isEmpty {
+            tweets = tweets.filter { debugIDs.contains($0.idStr) }
+        }
+        hydrationPlan = HydrationPlanner.plan(
+            tweets: tweets,
+            ownTweetIDs: archive.ownTweetIDs,
+            archiveUsername: archive.archiveUsername,
+            store: hydrationStore)
+    }
+
+    func startRetrieval() {
+        guard let hydrationStore, retrieveTask == nil, !isImporting else { return }
+        refreshHydrationPlan()
+        guard let plan = hydrationPlan, plan.totalPending > 0 else { return }
+
+        isRetrieving = true
+        isPaused = false
+        retrieveDone = 0
+        retrieveTotal = plan.totalPending
+        retrieveSummary = nil
+        activity = "Starting retrieval…"
+        logLines = []
+        control.reset()
+
+        let engine = HydrationEngine(
+            store: hydrationStore,
+            control: control,
+            callbacks: ImportCallbacks(
+                log: { [weak self] message, kind in
+                    Task { @MainActor [weak self] in self?.appendLog(message, kind) }
+                },
+                progress: { [weak self] done, total in
+                    Task { @MainActor [weak self] in
+                        self?.retrieveDone = done
+                        self?.retrieveTotal = total
+                    }
+                },
+                activity: { [weak self] activity in
+                    Task { @MainActor [weak self] in self?.activity = activity }
+                }
+            )
+        )
+
+        retrieveTask = Task { [weak self] in
+            let result = await Task.detached(priority: .userInitiated) {
+                await engine.run(plan: plan)
+            }.value
+            await MainActor.run { [weak self] in
+                self?.retrievalFinished(result)
+            }
+        }
+    }
+
+    private func retrievalFinished(_ result: HydrationRunResult) {
+        retrieveTask = nil
+        isRetrieving = false
+        isPaused = false
+        control.reset()
+
+        // Fold the fetched data into the loaded tweets right away, so the
+        // import that follows uses it.
+        if let archive, let hydrationStore {
+            HydrationOverlay.apply(tweets: archive.tweets, store: hydrationStore)
+        }
+        refreshHydrationPlan()
+
+        var parts: [String] = []
+        if result.retweetsRetrieved > 0 { parts.append("\(result.retweetsRetrieved) retweets un-truncated") }
+        if result.quotesRetrieved > 0 { parts.append("\(result.quotesRetrieved) quoted tweets retrieved") }
+        if result.filesDownloaded > 0 { parts.append("\(result.filesDownloaded) files downloaded") }
+        if result.unavailable > 0 { parts.append("\(result.unavailable) tweets turned out gone") }
+        if result.failures > 0 { parts.append("\(result.failures) requests failed") }
+        var summary = parts.isEmpty ? "Nothing new was retrieved" : parts.joined(separator: ", ")
+        if result.wasCancelled { summary = "Cancelled — \(summary)" }
+        if result.abortedByErrors { summary = "Stopped early (rate-limited?) — \(summary)" }
+        retrieveSummary = summary
+        appendLog(summary, .info)
+        activity = ""
+    }
+
+    func cancelRetrieval() {
+        control.cancel()
+        retrieveTask?.cancel()
+        control.setPaused(false)
+        isPaused = false
     }
 
     // MARK: - Steps 4–7: the import run
@@ -272,6 +397,7 @@ final class AppModel: ObservableObject {
         lastCoveredDate = history.load()?.coveredThrough
     }
 
+    /// Shared by the import and retrieval runs — only one runs at a time.
     func togglePause() {
         isPaused.toggle()
         control.setPaused(isPaused)
@@ -307,16 +433,19 @@ final class AppModel: ObservableObject {
     // MARK: - Navigation
 
     func backToConfigure() {
-        guard !isImporting else { return }
+        guard !isImporting, !isRetrieving else { return }
         step = .configure
     }
 
     func startOver() {
-        guard !isImporting else { return }
+        guard !isImporting, !isRetrieving else { return }
         archive = nil
         loadError = nil
         runResult = nil
         logLines = []
+        hydrationStore = nil
+        hydrationPlan = nil
+        retrieveSummary = nil
         step = .drop
     }
 

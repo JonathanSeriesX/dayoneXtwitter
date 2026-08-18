@@ -64,9 +64,27 @@ public enum ArchiveLoading {
                 + "archive; they will be published as ordinary tweets.")
         }
         for tweet in tweets {
+            // Flag retweets from the RAW text — the pipeline rewrites fullText
+            // in place, so the Retrieve step can't re-derive this later.
+            tweet.isRetweet = ThreadCategorizer.isDirectRetweet([tweet])
+            tweet.isTruncatedRetweet = tweet.isRetweet && looksTruncated(tweet.fullText)
             LinkExpansion.expandLinks(in: tweet, mediaFolder: ref.mediaFolder)
         }
         log("Expanded t.co links inside of tweets.")
+
+        // Anything the Retrieve step fetched on an earlier run is applied
+        // right away — offline, straight from the hydration folder.
+        let hydration = HydrationStore(for: ref)
+        if hydration.exists {
+            hydration.load()
+            let applied = HydrationOverlay.apply(tweets: tweets, store: hydration)
+            if !applied.isEmpty {
+                log("Applied earlier retrievals from \(hydration.folder.lastPathComponent): "
+                    + "\(applied.retweets) retweet\(applied.retweets == 1 ? "" : "s") un-truncated, "
+                    + "\(applied.quotes) quoted tweet\(applied.quotes == 1 ? "" : "s") attached, "
+                    + "\(applied.mediaFiles) media file\(applied.mediaFiles == 1 ? "" : "s") restored.")
+            }
+        }
 
         // ---- Step 3: stitch the tweets into threads -----------------------
         stage("Building threads…")
@@ -84,5 +102,14 @@ public enum ArchiveLoading {
             retweetThreads: threads.filter(ThreadCategorizer.isDirectRetweet).count,
             warnings: warnings
         )
+    }
+
+    /// Whether a retweet's raw text was cut at 140 chars. Old Twitter always
+    /// marks the cut with an ellipsis (sometimes cutting a t.co link in half
+    /// on the way out). A retweet whose author happened to END on "..." gets
+    /// fetched too — harmless, the retrieved text is simply the same.
+    static func looksTruncated(_ rawText: String) -> Bool {
+        let trimmed = rawText.pyStrip()
+        return trimmed.hasSuffix("…") || trimmed.hasSuffix("...")
     }
 }
