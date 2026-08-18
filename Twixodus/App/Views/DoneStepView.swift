@@ -24,10 +24,8 @@ struct DoneStepView: View {
             Divider()
 
             HStack {
-                Button("Back to Settings") { model.backToConfigure() }
-                    .secondaryActionButtonStyle()
                 Spacer()
-                Button("Import Another Archive") { model.startOver() }
+                Button("Close the app") { NSApp.terminate(nil) }
                     .primaryActionButtonStyle()
             }
             .padding(14)

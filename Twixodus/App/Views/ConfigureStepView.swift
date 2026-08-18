@@ -204,7 +204,7 @@ struct ConfigureStepView: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("My account still exists", isOn: $settings.accountStillExists)
-                note("Links back to your tweets are built with the archive's username. Turn this off if the account is gone forever — entries then get no tweet links.")
+                note("Turn this off if your account is gone forever — entries then get no tweet links.")
             }
             Toggle("End entries with “Sent from <client>”", isOn: $settings.showTweetSource)
             Toggle("Point tweet links at xcancel.com instead of twitter.com", isOn: $settings.useXcancelLinks)

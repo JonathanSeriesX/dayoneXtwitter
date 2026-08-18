@@ -21,5 +21,6 @@ If you found this useful, please consider supporting me:
 
 ## Plans (if the project gains traction and/or I have lots of spare time)
 
+- Online retrieval of missing tweets (the ones you quoted or replied to)
 - Better LLM-based title generation
 - Support for grouping relevant successive single tweets into a singular post, which sounds impossible tbh (relevant for tweets posted before 2017, as there were no threads back then)
