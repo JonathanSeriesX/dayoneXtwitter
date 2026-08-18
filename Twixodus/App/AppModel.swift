@@ -48,12 +48,14 @@ final class AppModel: ObservableObject {
     @Published var activity = ""
     @Published var logLines: [LogLine] = []
     @Published var runResult: ImportRunResult?
-    /// How many threads the ledger already records — read once per event
-    /// (archive loaded, run finished), not on every render.
-    @Published var alreadyImportedCount = 0
-    /// How far previous completed runs of this account got — the configure
-    /// screen offers to continue from there.
+    /// What the next run will do with the loaded archive — recomputed once per
+    /// event (archive loaded, run finished), not on every render.
+    @Published var importPreview: ImportPreview?
+    /// How far previous completed runs of this account got, from ImportHistory.
     @Published var lastCoveredDate: Date?
+    /// Whether a ledger or history file exists for this account — gates the
+    /// "reset previous run data" button.
+    @Published var hasPreviousRunData = false
 
     let settings = AppSettings()
     let control = ImportControl()
@@ -110,14 +112,9 @@ final class AppModel: ObservableObject {
         archive = loaded
         categoryCache = ImportEngine.CategoryCache()
         runResult = nil
-        refreshAlreadyImportedCount()
         lastCoveredDate = ImportHistory(accountId: loaded.accountId).load()?.coveredThrough
+        refreshImportPreview()
 
-        // A fresh archive knows the account's username — prefill it, the user
-        // can still edit or clear it.
-        if settings.currentUsername.isEmpty, let username = loaded.archiveUsername {
-            settings.currentUsername = username
-        }
         refreshDayOneBinary()
         step = .configure
     }
@@ -128,24 +125,55 @@ final class AppModel: ObservableObject {
         archive.map { ImportLedger(accountId: $0.accountId) }
     }
 
-    /// Re-reads the ledger size. Cheap enough per call, but the result is
-    /// cached in alreadyImportedCount so SwiftUI bodies never touch the file.
-    func refreshAlreadyImportedCount() {
-        alreadyImportedCount = ledger?.loadProcessedIDs().count ?? 0
+    /// Recomputes what the next run would import. Walks all threads against
+    /// the ledger, so it's called per event, never from a SwiftUI body.
+    func refreshImportPreview() {
+        guard let archive, let ledger else {
+            importPreview = nil
+            hasPreviousRunData = false
+            return
+        }
+        let config = settings.buildConfig()
+        var threads = archive.threads
+        var processedIDs = ledger.loadProcessedIDs()
+        var coveredThrough = lastCoveredDate
+        if !config.debugTweetIDs.isEmpty {
+            // Debug runs import the listed threads every time, ledger ignored.
+            threads = ThreadSelection.filterToDebugIDs(threads, ids: config.debugTweetIDs)
+            processedIDs = []
+            coveredThrough = nil
+        }
+        importPreview = ThreadSelection.preview(
+            threads, startDate: config.startDate, endDate: config.endDate,
+            processedIDs: processedIDs,
+            coveredThrough: coveredThrough)
+        let fm = FileManager.default
+        hasPreviousRunData = fm.fileExists(atPath: ledger.fileURL.path)
+            || fm.fileExists(atPath: ImportHistory(accountId: archive.accountId).fileURL.path)
     }
 
-    /// Points the date range at everything newer than what previous runs
-    /// covered. The one-day overlap is deduplicated by the ledger.
-    func continueFromLastImport() {
-        guard let covered = lastCoveredDate else { return }
-        settings.startDate = covered
-        settings.endDate = Date()
+    /// Forgets everything about previous runs of this account: the ledger, the
+    /// coverage record, and the saved delete-the-duplicates report. Entries
+    /// already in Day One are untouched — the next run imports everything
+    /// again, duplicating whatever is already there.
+    func resetPreviousRunData() {
+        guard let archive, !isImporting else { return }
+        let fm = FileManager.default
+        if let ledger { try? fm.removeItem(at: ledger.fileURL) }
+        try? fm.removeItem(at: ImportHistory(accountId: archive.accountId).fileURL)
+        try? fm.removeItem(at: Self.reportFileURL)
+        lastCoveredDate = nil
+        refreshImportPreview()
     }
 
     func startImport() {
         guard let archive, let binary = dayOneBinary, importTask == nil else { return }
 
         var config = settings.buildConfig()
+        // The username comes straight from the archive; links back to the
+        // tweets only make sense while the account still exists.
+        config.currentUsername = settings.accountStillExists
+            ? archive.archiveUsername?.pyTrimmedOrNil() : nil
         // Lets the run spot already-imported threads that grew since the last
         // import — including ones rooted on the resume range's overlap day.
         config.lastCoveredThrough = lastCoveredDate
@@ -208,8 +236,8 @@ final class AppModel: ObservableObject {
         control.reset()
         runResult = result
         saveReportIfAny(result)
-        refreshAlreadyImportedCount()
         recordCoverage(result)
+        refreshImportPreview()
         step = .done
     }
 
@@ -217,14 +245,16 @@ final class AppModel: ObservableObject {
     /// but only when nothing was cut off by a cancel, the per-run limit, or a
     /// failure, so the record never claims coverage the run didn't deliver.
     private func recordCoverage(_ result: ImportRunResult) {
-        guard let archive,
+        // A debug-narrowed run (date range, specific tweets) never saw the
+        // whole archive, so it can't vouch for coverage.
+        guard let archive, !settings.debugFiltersActive,
               !result.wasCancelled, !result.stoppedAtLimit, result.failedCount == 0,
               let newestTweet = archive.tweets.map(\.createdAt).max()
         else { return }
-        // The run can only vouch for tweets the archive actually contains.
-        let covered = min(settings.buildConfig().endDate, newestTweet)
+        // A completed run went over the whole archive, so the coverage point
+        // is simply the newest tweet the archive holds.
         let history = ImportHistory(accountId: archive.accountId)
-        history.recordCovered(through: covered)
+        history.recordCovered(through: newestTweet)
         lastCoveredDate = history.load()?.coveredThrough
     }
 

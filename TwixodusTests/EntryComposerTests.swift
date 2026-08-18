@@ -6,7 +6,7 @@ final class EntryComposerTests: XCTestCase {
         journalName: "Tweets Test",
         replyJournalName: "Twitter Replies Test",
         currentUsername: "JonathanSeriesX",
-        shuffleMode: false,
+        importOrder: .oldestFirst,
         processTitlesWithLLM: false
     )
 

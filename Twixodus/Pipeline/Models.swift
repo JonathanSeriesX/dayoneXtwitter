@@ -12,6 +12,16 @@
 
 import Foundation
 
+/// The order an import run walks the threads in. Progress bookkeeping is
+/// order-independent (the ledger skips by tweet ID), so switching between
+/// orders mid-archive — or continuing an interrupted run in another order —
+/// is always safe.
+public enum ImportOrder: String, CaseIterable {
+    case oldestFirst
+    case newestFirst
+    case random
+}
+
 /// One tweet from tweets.js. The archive wraps every tweet in an extra
 /// `{"tweet": {...}}` dict; the loader unwraps it into this class. It is a
 /// reference type on purpose: the pipeline mutates tweets in place, exactly
@@ -225,8 +235,12 @@ public struct ImportConfig {
     public var currentUsername: String?
     /// Max threads to process per run, or nil for no limit.
     public var maxThreadsToProcess: Int?
-    /// true: go over threads in a random order; false: start from the oldest.
-    public var shuffleMode: Bool
+    /// The order the run walks the threads in (by root tweet date).
+    public var importOrder: ImportOrder
+    /// Debug: when non-empty, only threads containing these tweet IDs are
+    /// imported — the ledger is neither consulted nor written, so the listed
+    /// threads import every time (main.py's tweets_to_debug file).
+    public var debugTweetIDs: Set<String>
     public var ignoreRetweets: Bool
     /// End entries with "Sent from <client>" (Twitter for Android, etc.).
     public var showTweetSource: Bool
@@ -255,7 +269,8 @@ public struct ImportConfig {
         replyJournalName: String? = "Twitter Replies",
         currentUsername: String? = nil,
         maxThreadsToProcess: Int? = nil,
-        shuffleMode: Bool = true,
+        importOrder: ImportOrder = .oldestFirst,
+        debugTweetIDs: Set<String> = [],
         ignoreRetweets: Bool = false,
         showTweetSource: Bool = true,
         useXcancelLinks: Bool = false,
@@ -274,7 +289,8 @@ public struct ImportConfig {
         self.replyJournalName = replyJournalName
         self.currentUsername = currentUsername
         self.maxThreadsToProcess = maxThreadsToProcess
-        self.shuffleMode = shuffleMode
+        self.importOrder = importOrder
+        self.debugTweetIDs = debugTweetIDs
         self.ignoreRetweets = ignoreRetweets
         self.showTweetSource = showTweetSource
         self.useXcancelLinks = useXcancelLinks

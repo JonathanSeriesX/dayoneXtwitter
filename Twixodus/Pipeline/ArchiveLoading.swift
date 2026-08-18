@@ -14,6 +14,9 @@ public struct LoadedArchive {
     public let archiveUsername: String?
     public let adoptedOrphans: Int
     public let threads: [TweetThread]
+    /// How many of the threads are direct retweets — counted at load time,
+    /// because categorization later strips the "RT @" prefixes in place.
+    public let retweetThreads: Int
     /// Non-fatal problems found while loading (e.g. malformed tweets that had
     /// to be skipped), so the UI can show them instead of losing them.
     public let warnings: [String]
@@ -78,6 +81,7 @@ public enum ArchiveLoading {
             archiveUsername: account.username,
             adoptedOrphans: adopted,
             threads: threads,
+            retweetThreads: threads.filter(ThreadCategorizer.isDirectRetweet).count,
             warnings: warnings
         )
     }

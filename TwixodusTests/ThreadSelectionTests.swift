@@ -110,6 +110,83 @@ final class ThreadSelectionTests: XCTestCase {
         XCTAssertTrue(extended.isEmpty)
     }
 
+    // MARK: - filterToDebugIDs
+
+    func testDebugFilterMatchesAnyTweetInThread() {
+        let a = thread(root: PipelineDates.date(2025, 7, 1), replies: [PipelineDates.date(2025, 7, 2)])  // ids 1, 2
+        let b = [Fixtures.tweet(id: "30", createdAt: PipelineDates.date(2025, 8, 1))]
+
+        // Root ID and mid-thread ID both select the thread.
+        XCTAssertEqual(ThreadSelection.filterToDebugIDs([a, b], ids: ["1"]).count, 1)
+        XCTAssertEqual(ThreadSelection.filterToDebugIDs([a, b], ids: ["2"]).count, 1)
+        XCTAssertEqual(ThreadSelection.filterToDebugIDs([a, b], ids: ["30"])[0][0].idStr, "30")
+        XCTAssertTrue(ThreadSelection.filterToDebugIDs([a, b], ids: ["999"]).isEmpty)
+    }
+
+    // MARK: - preview
+
+    private let fullStart = PipelineDates.date(2006, 3, 21)
+    private let fullEnd = PipelineDates.date(2069, 4, 20)
+
+    func testPreviewOfFirstImportTakesEverything() {
+        let threads = [
+            [Fixtures.tweet(id: "10", createdAt: PipelineDates.date(2025, 7, 1))],
+            [Fixtures.tweet(id: "20", createdAt: PipelineDates.date(2025, 8, 1))],
+        ]
+        let preview = ThreadSelection.preview(
+            threads, startDate: fullStart, endDate: fullEnd,
+            processedIDs: [], coveredThrough: nil)
+        XCTAssertEqual(preview.newThreads, 2)
+        XCTAssertEqual(preview.grownThreads, 0)
+        XCTAssertEqual(preview.alreadyImported, 0)
+        XCTAssertEqual(preview.pending, 2)
+    }
+
+    func testPreviewCountsNewGrownAndAlreadyImported() {
+        let covered = PipelineDates.date(2025, 7, 1, 15, 59, 0)
+        let newThread = [Fixtures.tweet(id: "20", createdAt: PipelineDates.date(2025, 7, 1, 20, 0, 0))]
+        let grownThread = thread(root: covered, replies: [PipelineDates.date(2025, 7, 2)])  // ids 1, 2
+        let unchanged = [Fixtures.tweet(id: "30", createdAt: PipelineDates.date(2025, 6, 30))]
+
+        let preview = ThreadSelection.preview(
+            [newThread, grownThread, unchanged], startDate: fullStart, endDate: fullEnd,
+            processedIDs: ["1", "30"], coveredThrough: covered)
+        XCTAssertEqual(preview.newThreads, 1)
+        XCTAssertEqual(preview.grownThreads, 1)
+        XCTAssertEqual(preview.alreadyImported, 1)
+        XCTAssertEqual(preview.pending, 2)
+    }
+
+    /// A grown thread whose extension marker is already in the ledger was
+    /// re-imported before — it counts as done, not as pending again.
+    func testPreviewGrownThreadWithMarkerCountsAsAlreadyImported() {
+        let covered = PipelineDates.date(2025, 7, 1, 15, 59, 0)
+        let grownThread = thread(root: covered, replies: [PipelineDates.date(2025, 7, 2)])
+        let preview = ThreadSelection.preview(
+            [grownThread], startDate: fullStart, endDate: fullEnd,
+            processedIDs: ["1", ImportLedger.extensionMarker(grownThread)],
+            coveredThrough: covered)
+        XCTAssertEqual(preview.grownThreads, 0)
+        XCTAssertEqual(preview.alreadyImported, 1)
+        XCTAssertEqual(preview.pending, 0)
+    }
+
+    /// The interrupted-import case: entries in the ledger but no coverage
+    /// point recorded yet — the remainder is pending, nothing counts as grown.
+    func testPreviewOfInterruptedImportShowsRemainder() {
+        let threads = [
+            [Fixtures.tweet(id: "10", createdAt: PipelineDates.date(2025, 7, 1))],
+            [Fixtures.tweet(id: "20", createdAt: PipelineDates.date(2025, 8, 1))],
+            [Fixtures.tweet(id: "30", createdAt: PipelineDates.date(2025, 9, 1))],
+        ]
+        let preview = ThreadSelection.preview(
+            threads, startDate: fullStart, endDate: fullEnd,
+            processedIDs: ["10"], coveredThrough: nil)
+        XCTAssertEqual(preview.newThreads, 2)
+        XCTAssertEqual(preview.grownThreads, 0)
+        XCTAssertEqual(preview.alreadyImported, 1)
+    }
+
     func testCountTweetsBefore() {
         let t = thread(
             root: PipelineDates.date(2024, 1, 1),

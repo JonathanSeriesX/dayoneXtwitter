@@ -140,12 +140,27 @@ public final class ImportEngine {
         var threads = allThreads
 
         // ---- Step 4: pick which threads to import, and in what order ------
-        if config.shuffleMode {
+        // Debug mode: only the listed threads, imported every time — the
+        // ledger is neither consulted nor written (main.py's tweets_to_debug).
+        let debugMode = !config.debugTweetIDs.isEmpty
+        if debugMode {
+            threads = ThreadSelection.filterToDebugIDs(threads, ids: config.debugTweetIDs)
+            log("Debug mode: \(threads.count) thread(s) match the listed tweet IDs.")
+        }
+
+        switch config.importOrder {
+        case .oldestFirst:
+            threads = threads.stableSorted { $0[0].createdAt < $1[0].createdAt }
+        case .newestFirst:
+            threads = threads.stableSorted { $0[0].createdAt > $1[0].createdAt }
+        case .random:
             threads.shuffle()
         }
 
-        var processedIDs = ledger.loadProcessedIDs()
-        log("Loaded \(processedIDs.count) previously processed tweet IDs.")
+        var processedIDs = debugMode ? Set<String>() : ledger.loadProcessedIDs()
+        if !debugMode {
+            log("Loaded \(processedIDs.count) previously processed tweet IDs.")
+        }
 
         // Threads that started inside the range are imported normally; older
         // threads that were extended within it need a full re-import.
@@ -327,8 +342,8 @@ public final class ImportEngine {
             log: { self.log($0) }
         ) else {
             // Mark as processed even if skipped
-            ledger.rememberProcessed(
-                tweetId: tweetId, reimportMarker: reimportMarker, processedIDs: &processedIDs)
+            recordProcessed(tweetId: tweetId, reimportMarker: reimportMarker,
+                            processedIDs: &processedIDs)
             return .skippedNoJournal
         }
 
@@ -348,8 +363,8 @@ public final class ImportEngine {
             return .failed
         }
 
-        ledger.rememberProcessed(
-            tweetId: tweetId, reimportMarker: reimportMarker, processedIDs: &processedIDs)
+        recordProcessed(tweetId: tweetId, reimportMarker: reimportMarker,
+                        processedIDs: &processedIDs)
         return .imported(ImportedEntry(
             tweetId: tweetId,
             title: title,
@@ -358,6 +373,16 @@ public final class ImportEngine {
             date: content.date ?? firstTweet.createdAt,
             tweetCount: thread.count
         ))
+    }
+
+    /// Writes to the ledger — unless this is a debug run, which must leave no
+    /// trace so the listed threads import every time.
+    private func recordProcessed(
+        tweetId: String, reimportMarker: String?, processedIDs: inout Set<String>
+    ) {
+        guard config.debugTweetIDs.isEmpty else { return }
+        ledger.rememberProcessed(
+            tweetId: tweetId, reimportMarker: reimportMarker, processedIDs: &processedIDs)
     }
 
     /// Logs the thread being imported, tweet by tweet.

@@ -103,7 +103,7 @@ ollama rm qwen3.5:9b-mlx
    [`Twixodus.zip`](https://github.com/JonathanSeriesX/twixodus/releases/latest/download/Twixodus.zip).
 2. **Launch Twixodus** and drop your `twitter-….zip` (or the unpacked folder)
    onto the window.
-3. **Walk through the settings** — journals, date range, whether your account
+3. **Walk through the settings** — journals, whether your account
    still exists — and press **Start Import**. You can pause or cancel any time;
    the ledger remembers every imported thread, so the next run picks up where you
    left off.

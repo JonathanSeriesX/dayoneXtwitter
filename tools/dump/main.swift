@@ -22,7 +22,6 @@ if username == "-" { username = nil }
 
 var config = ImportConfig()
 config.currentUsername = username
-config.shuffleMode = false
 config.processTitlesWithLLM = false
 config.journalName = "Tweets Test"
 config.replyJournalName = "Twitter Replies Test"

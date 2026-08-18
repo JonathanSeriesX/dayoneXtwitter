@@ -198,6 +198,14 @@ public enum ThreadCategorizer {
         return "Replied to \(joinNamesNaturalLanguage(displayNames))"
     }
 
+    /// Whether the thread would be categorized as a retweet — a direct retweet
+    /// starts with "RT @" (or the quoted variation). Read-only, so it can be
+    /// used at archive load, before categorization strips the prefix in place.
+    public static func isDirectRetweet(_ thread: TweetThread) -> Bool {
+        guard let first = thread.first else { return false }
+        return first.fullText.hasPrefix("RT @") || first.fullText.hasPrefix("RT \"@")
+    }
+
     /// Categorizes a tweet thread based on the characteristics of its first
     /// tweet: 'Wrote a thread' (multiple tweets), 'Retweeted ...',
     /// 'Quoted ...', 'Replied to ...', 'Callout to ...', or a plain 'Tweeted'.
@@ -206,8 +214,7 @@ public enum ThreadCategorizer {
             return "Empty threat"  // again, we should just segfault at this point
         }
 
-        // A direct retweet starts with "RT @" (or the quoted variation).
-        let isRetweet = first.fullText.hasPrefix("RT @") || first.fullText.hasPrefix("RT \"@")
+        let isRetweet = isDirectRetweet(thread)
 
         let isReply = first.inReplyToStatusIdStr != nil
         let isCallout = !isReply

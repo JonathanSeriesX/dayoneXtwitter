@@ -6,7 +6,7 @@ final class XcancelLinksTests: XCTestCase {
         journalName: "Tweets Test",
         replyJournalName: "Twitter Replies Test",
         currentUsername: "JonathanSeriesX",
-        shuffleMode: false,
+        importOrder: .oldestFirst,
         useXcancelLinks: true,
         processTitlesWithLLM: false
     )

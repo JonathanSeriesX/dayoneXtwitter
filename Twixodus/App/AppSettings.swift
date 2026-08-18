@@ -18,20 +18,57 @@ final class AppSettings: ObservableObject {
 
     // MARK: - Account
 
-    /// Off means the account is gone forever: no twitter.com links are written.
+    /// Off means the account is gone forever: no tweet links are written.
+    /// The username itself always comes from the archive.
     @AppStorage("accountStillExists") var accountStillExists = true
-    @AppStorage("currentUsername") var currentUsername = ""
 
-    // MARK: - Date range & limits
+    // MARK: - Debug options
 
     @AppStorage("startDateEpoch") private var startDateEpoch: Double = 0
     @AppStorage("endDateEpoch") private var endDateEpoch: Double = 0
+    /// Tweet IDs to import exclusively, separated however (see debugTweetIDs).
+    @AppStorage("debugTweetIDsText") var debugTweetIDsText = ""
+
+    /// The pickers work in calendar days; the pipeline thinks in naive UTC.
+    /// Untouched pickers sit at the pipeline defaults = the whole archive.
+    var startDate: Date {
+        get { startDateEpoch > 0 ? Date(timeIntervalSince1970: startDateEpoch) : PipelineDates.date(2006, 3, 21) }
+        set { startDateEpoch = newValue.timeIntervalSince1970; objectWillChange.send() }
+    }
+
+    var endDate: Date {
+        get { endDateEpoch > 0 ? Date(timeIntervalSince1970: endDateEpoch) : PipelineDates.date(2069, 4, 20) }
+        set { endDateEpoch = newValue.timeIntervalSince1970; objectWillChange.send() }
+    }
+
+    func resetDateRange() {
+        startDateEpoch = 0
+        endDateEpoch = 0
+        objectWillChange.send()
+    }
+
+    var debugTweetIDs: Set<String> {
+        Set(debugTweetIDsText
+            .split(whereSeparator: { $0.isWhitespace || $0 == "," })
+            .map(String.init))
+    }
+
+    /// True when any debug option narrows the run — such runs never count as
+    /// full coverage of the archive.
+    var debugFiltersActive: Bool {
+        !debugTweetIDs.isEmpty
+            || Self.utcDay(startDate, endOfDay: false) != PipelineDates.date(2006, 3, 21)
+            || Self.utcDay(endDate, endOfDay: true) != PipelineDates.date(2069, 4, 20).addingTimeInterval(86_399)
+    }
+
+    // MARK: - Limits
+
     @AppStorage("limitThreads") var limitThreads = false
     @AppStorage("maxThreadsToProcess") var maxThreadsToProcess = 100
 
     // MARK: - Options
 
-    @AppStorage("shuffleMode") var shuffleMode = true
+    @AppStorage("importOrder") var importOrder: ImportOrder = .oldestFirst
     @AppStorage("ignoreRetweets") var ignoreRetweets = false
     @AppStorage("showTweetSource") var showTweetSource = true
     @AppStorage("useXcancelLinks") var useXcancelLinks = false
@@ -40,26 +77,10 @@ final class AppSettings: ObservableObject {
 
     @AppStorage("llmTitlesEnabled") var llmTitlesEnabled = true
     @AppStorage("llmTitlesForSingleTweets") var llmTitlesForSingleTweets = true
-    @AppStorage("llmMaxImages") var llmMaxImages = 26
     @AppStorage("ollamaHost") var ollamaHost = "http://localhost:11434"
     @AppStorage("ollamaModelName") var ollamaModelName = "qwen3.5:9b-mlx"
     @AppStorage("ollamaTimeout") var ollamaTimeout = 60
     @AppStorage("ollamaTitlePrompt") var ollamaTitlePrompt = ImportConfig.defaultTitlePrompt
-
-    // MARK: - Date range as Dates
-
-    /// The pickers work in calendar days; the pipeline thinks in naive UTC.
-    /// Dates are stored as epochs and normalized to UTC midnight on the way
-    /// into the pipeline.
-    var startDate: Date {
-        get { startDateEpoch > 0 ? Date(timeIntervalSince1970: startDateEpoch) : PipelineDates.date(2006, 3, 21) }
-        set { startDateEpoch = newValue.timeIntervalSince1970; objectWillChange.send() }
-    }
-
-    var endDate: Date {
-        get { endDateEpoch > 0 ? Date(timeIntervalSince1970: endDateEpoch) : Date() }
-        set { endDateEpoch = newValue.timeIntervalSince1970; objectWillChange.send() }
-    }
 
     // MARK: - Pipeline config
 
@@ -71,14 +92,17 @@ final class AppSettings: ObservableObject {
         return endOfDay ? midnight.addingTimeInterval(86_399) : midnight
     }
 
+    /// A normal run goes over the whole archive — the ledger plus the recorded
+    /// coverage point turn that into "only what's new". The Debug options
+    /// (date range, specific tweet IDs) can narrow a run; those runs never
+    /// record coverage.
     func buildConfig() -> ImportConfig {
-        let username = currentUsername.pyTrimmedOrNil()
-        return ImportConfig(
+        ImportConfig(
             journalName: journalName,
             replyJournalName: importReplies ? replyJournalName.pyTrimmedOrNil() : nil,
-            currentUsername: accountStillExists ? username : nil,
             maxThreadsToProcess: limitThreads && maxThreadsToProcess > 0 ? maxThreadsToProcess : nil,
-            shuffleMode: shuffleMode,
+            importOrder: importOrder,
+            debugTweetIDs: debugTweetIDs,
             ignoreRetweets: ignoreRetweets,
             showTweetSource: showTweetSource,
             useXcancelLinks: useXcancelLinks,
@@ -86,7 +110,8 @@ final class AppSettings: ObservableObject {
             endDate: Self.utcDay(endDate, endOfDay: true),
             processTitlesWithLLM: llmTitlesEnabled,
             llmTitlesForSingleTweets: llmTitlesForSingleTweets,
-            llmMaxImages: llmMaxImages,
+            // Every attached image goes to the model — no reason to hold back.
+            llmMaxImages: Int.max,
             ollamaHost: ollamaHost,
             ollamaModelName: ollamaModelName,
             ollamaTimeout: TimeInterval(ollamaTimeout),

@@ -9,7 +9,36 @@
 
 import Foundation
 
+/// What a run would do with an archive, computed up front for the UI: how many
+/// threads are new, how many grew since their import and need the full
+/// re-import treatment, and how many are already in Day One. Mirrors exactly
+/// what the engine will skip and import.
+public struct ImportPreview {
+    public var newThreads = 0
+    public var grownThreads = 0
+    public var alreadyImported = 0
+    /// What the run will actually send to Day One.
+    public var pending: Int { newThreads + grownThreads }
+}
+
 public enum ThreadSelection {
+
+    /// Computes the ImportPreview for these threads against the ledger state,
+    /// with the same selection rules the run itself will use.
+    public static func preview(
+        _ threads: [TweetThread], startDate: Date, endDate: Date,
+        processedIDs: Set<String>, coveredThrough: Date?
+    ) -> ImportPreview {
+        let (inRange, extended) = partitionThreadsByDate(
+            threads, startDate: startDate, endDate: endDate,
+            processedIDs: processedIDs, coveredThrough: coveredThrough)
+        let newThreads = inRange.filter { !processedIDs.contains($0[0].idStr) }.count
+        let grown = extended.filter { !processedIDs.contains(ImportLedger.extensionMarker($0)) }.count
+        return ImportPreview(
+            newThreads: newThreads,
+            grownThreads: grown,
+            alreadyImported: (inRange.count - newThreads) + (extended.count - grown))
+    }
 
     /// Splits threads into the ones to import normally and the ones to re-import.
     ///
@@ -52,6 +81,13 @@ public enum ThreadSelection {
         }
 
         return (inRange, extended)
+    }
+
+    /// Debug helper: keeps only the threads containing any of the listed
+    /// tweet IDs. (The Python version matched root IDs only; matching any
+    /// tweet is friendlier when the interesting tweet sits mid-thread.)
+    public static func filterToDebugIDs(_ threads: [TweetThread], ids: Set<String>) -> [TweetThread] {
+        threads.filter { thread in thread.contains { ids.contains($0.idStr) } }
     }
 
     /// Counts the tweets the already-imported copy of this thread is expected

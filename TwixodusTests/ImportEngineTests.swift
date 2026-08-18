@@ -94,7 +94,7 @@ final class ImportEngineTests: XCTestCase {
             replyJournalName: replyJournal,
             currentUsername: "tester",
             maxThreadsToProcess: maxThreads,
-            shuffleMode: false,
+            importOrder: .oldestFirst,
             ignoreRetweets: ignoreRetweets
         )
     }
@@ -107,6 +107,58 @@ final class ImportEngineTests: XCTestCase {
         for id in ids {
             ledger.rememberProcessed(tweetId: id, reimportMarker: nil, processedIDs: &seen)
         }
+    }
+
+    // MARK: - Debug mode
+
+    /// tweets_to_debug semantics: only the listed threads run, the ledger is
+    /// ignored (they import even when already imported) and left untouched.
+    func testDebugModeImportsListedThreadsAndLeavesNoTrace() async {
+        let listed = [makeTweet("1", text: "the debugged tweet")]
+        let other = [makeTweet("2", text: "some other tweet")]
+        seedLedger(["1", "2"])
+
+        var config = makeConfig()
+        config.debugTweetIDs = ["1"]
+
+        let poster = MockPoster()
+        let result = await makeEngine(threadsConfig: config, poster: poster)
+            .run(threads: [listed, other])
+
+        XCTAssertEqual(result.importedCount, 1)
+        XCTAssertEqual(result.skippedAlreadyImported, 0)
+        XCTAssertEqual(poster.calls.count, 1)
+        XCTAssertTrue(poster.calls[0].text.contains("the debugged tweet"))
+        // The ledger still holds exactly what was seeded — no trace left.
+        XCTAssertEqual(ledger.loadProcessedIDs(), ["1", "2"])
+    }
+
+    // MARK: - Import order
+
+    func testNewestFirstImportsNewestRootFirst() async {
+        let old = [makeTweet("1", date: PipelineDates.date(2019, 1, 1), text: "older tweet")]
+        let new = [makeTweet("2", date: PipelineDates.date(2021, 1, 1), text: "newer tweet")]
+        var config = makeConfig()
+        config.importOrder = .newestFirst
+
+        let poster = MockPoster()
+        _ = await makeEngine(threadsConfig: config, poster: poster).run(threads: [old, new])
+
+        XCTAssertEqual(poster.calls.count, 2)
+        XCTAssertTrue(poster.calls[0].text.contains("newer tweet"))
+        XCTAssertTrue(poster.calls[1].text.contains("older tweet"))
+    }
+
+    func testOldestFirstSortsEvenWhenInputIsNewestFirst() async {
+        let old = [makeTweet("1", date: PipelineDates.date(2019, 1, 1), text: "older tweet")]
+        let new = [makeTweet("2", date: PipelineDates.date(2021, 1, 1), text: "newer tweet")]
+
+        let poster = MockPoster()
+        _ = await makeEngine(threadsConfig: makeConfig(), poster: poster).run(threads: [new, old])
+
+        XCTAssertEqual(poster.calls.count, 2)
+        XCTAssertTrue(poster.calls[0].text.contains("older tweet"))
+        XCTAssertTrue(poster.calls[1].text.contains("newer tweet"))
     }
 
     // MARK: - Grown threads on the resume boundary
