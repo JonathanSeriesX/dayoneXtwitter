@@ -5,7 +5,6 @@ import type { NextConfig } from "next";
    next/image can't run its optimizer without a server, hence `unoptimized`;
    the screenshots ship as-is. */
 const nextConfig: NextConfig = {
-  //output: "export",
   images: { unoptimized: true },
   /* content/page.md comes in as a plain string (tools/raw-loader.cjs), so the
      copy is a watched module: edit it and the page hot-reloads. */

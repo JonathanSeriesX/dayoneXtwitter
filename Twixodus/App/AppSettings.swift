@@ -31,14 +31,26 @@ final class AppSettings: ObservableObject {
 
     /// The pickers work in calendar days; the pipeline thinks in naive UTC.
     /// Untouched pickers sit at the pipeline defaults = the whole archive.
+    ///
+    /// The defaults are built as *local* calendar days, because everything
+    /// downstream (the pickers, utcDay(), debugFiltersActive) reads dates
+    /// through the local calendar. A UTC-midnight default would land on the
+    /// previous local day anywhere west of UTC — permanently flagging the
+    /// untouched pickers as a debug filter and killing coverage recording.
     var startDate: Date {
-        get { startDateEpoch > 0 ? Date(timeIntervalSince1970: startDateEpoch) : PipelineDates.date(2006, 3, 21) }
+        get { startDateEpoch > 0 ? Date(timeIntervalSince1970: startDateEpoch) : Self.localDay(2006, 3, 21) }
         set { startDateEpoch = newValue.timeIntervalSince1970; objectWillChange.send() }
     }
 
     var endDate: Date {
-        get { endDateEpoch > 0 ? Date(timeIntervalSince1970: endDateEpoch) : PipelineDates.date(2069, 4, 20) }
+        get { endDateEpoch > 0 ? Date(timeIntervalSince1970: endDateEpoch) : Self.localDay(2069, 4, 20) }
         set { endDateEpoch = newValue.timeIntervalSince1970; objectWillChange.send() }
+    }
+
+    /// Local midnight of the given calendar day — utcDay() maps it to the
+    /// exact pipeline default in every timezone.
+    private static func localDay(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        Calendar.current.date(from: DateComponents(year: year, month: month, day: day))!
     }
 
     func resetDateRange() {

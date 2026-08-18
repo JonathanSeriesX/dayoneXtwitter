@@ -52,30 +52,35 @@ public final class ImportLedger {
         return ids
     }
 
-    /// Appends one ID (or extension marker) to the ledger file.
-    private func append(_ id: String) {
+    /// Appends one ID (or extension marker) to the ledger file. Throws when
+    /// the line can't be written — a silently lost line would make the next
+    /// run import the same thread again.
+    private func append(_ id: String) throws {
         let fm = FileManager.default
-        try? fm.createDirectory(
+        try fm.createDirectory(
             at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
-        guard let data = "\(id)\n".data(using: .utf8) else { return }
+        let data = Data("\(id)\n".utf8)
+        // FileHandle only opens existing files; a fresh ledger is created by
+        // the write(to:) below instead.
         if let handle = try? FileHandle(forWritingTo: fileURL) {
             defer { try? handle.close() }
-            _ = try? handle.seekToEnd()
-            try? handle.write(contentsOf: data)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
         } else {
-            try? data.write(to: fileURL)
+            try data.write(to: fileURL)
         }
     }
 
     /// Records a thread as processed — in the file and in the in-memory set —
-    /// without ever writing the same ID twice.
+    /// without ever writing the same ID twice. Throws when the ledger file
+    /// can't be written; IDs are only added to the set once safely on disk.
     public func rememberProcessed(
         tweetId: String, reimportMarker: String?, processedIDs: inout Set<String>
-    ) {
+    ) throws {
         for id in [tweetId, reimportMarker].compactMap({ $0 }) {
             if !processedIDs.contains(id) {
-                append(id)
+                try append(id)
                 processedIDs.insert(id)
             }
         }

@@ -89,7 +89,9 @@ final class ThreadBuilderTests: XCTestCase {
         XCTAssertEqual(threads[0][0].idStr, "10")
     }
 
-    func testThreadsSplitWhenMediaLimitExceeded() {
+    func testMediaHeavyThreadStaysWhole() {
+        // Threads always come out whole — fitting Day One's attachment limit
+        // is ThreadSplitter's job at entry-posting time, not the builder's.
         func mediaTweet(id: String, count: Int, replyTo: String? = nil) -> Tweet {
             let media = (0..<count).map { Fixtures.photo(tco: "https://t.co/m\(id)_\($0)") }
             return Fixtures.tweet(id: id, replyToStatus: replyTo, extendedMedia: media)
@@ -99,18 +101,9 @@ final class ThreadBuilderTests: XCTestCase {
             mediaTweet(id: "2", count: 20, replyTo: "1"),
             mediaTweet(id: "3", count: 2, replyTo: "2"),
         ]
-        let threads = ThreadBuilder.combineThreads(tweets, mediaLimit: 26)
-        XCTAssertEqual(threads.count, 2)
-        XCTAssertEqual(threads[0].map(\.idStr), ["1"])
-        XCTAssertEqual(threads[1].map(\.idStr), ["2", "3"])
-    }
-
-    func testSingleTweetOverMediaLimitStillFormsAThread() {
-        let media = (0..<30).map { Fixtures.photo(tco: "https://t.co/x\($0)") }
-        let tweets = [Fixtures.tweet(id: "1", extendedMedia: media)]
-        let threads = ThreadBuilder.combineThreads(tweets, mediaLimit: 26)
+        let threads = ThreadBuilder.combineThreads(tweets)
         XCTAssertEqual(threads.count, 1)
-        XCTAssertEqual(threads[0].count, 1)
+        XCTAssertEqual(threads[0].map(\.idStr), ["1", "2", "3"])
     }
 
     func testRootsSortedNumericallyNotLexically() {

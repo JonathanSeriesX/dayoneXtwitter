@@ -105,7 +105,7 @@ final class ImportEngineTests: XCTestCase {
     private func seedLedger(_ ids: [String]) {
         var seen = Set<String>()
         for id in ids {
-            ledger.rememberProcessed(tweetId: id, reimportMarker: nil, processedIDs: &seen)
+            try! ledger.rememberProcessed(tweetId: id, reimportMarker: nil, processedIDs: &seen)
         }
     }
 
@@ -302,7 +302,7 @@ final class ImportEngineTests: XCTestCase {
         // The old loop-index check would stop before importing anything new.
         var processed = Set<String>()
         for id in ["1", "2", "3"] {
-            ledger.rememberProcessed(tweetId: id, reimportMarker: nil, processedIDs: &processed)
+            try! ledger.rememberProcessed(tweetId: id, reimportMarker: nil, processedIDs: &processed)
         }
 
         let poster = MockPoster()
@@ -462,7 +462,7 @@ final class ImportEngineTests: XCTestCase {
     func testExtendedThreadIsReimportedWithMarkerAndReport() async {
         // The thread started before the range but gained a tweet inside it.
         var processed = Set<String>()
-        ledger.rememberProcessed(tweetId: "1", reimportMarker: nil, processedIDs: &processed)
+        try! ledger.rememberProcessed(tweetId: "1", reimportMarker: nil, processedIDs: &processed)
 
         var config = makeConfig()
         config.startDate = PipelineDates.date(2020, 1, 1)

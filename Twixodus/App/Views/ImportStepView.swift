@@ -45,25 +45,39 @@ struct ImportStepView: View {
         }
     }
 
+    /// The engine's denominator shrinks when a pending thread turns out not to
+    /// produce an entry (skipped by configuration, or Day One rejected it) —
+    /// it can even reach zero mid-run, so "Preparing…" and the percentage key
+    /// off progressStarted, never off the denominator alone.
+    private var headline: String {
+        if !model.progressStarted { return "Preparing…" }
+        if model.totalPending == 0 { return "Imported \(model.importedCount)" }
+        return "Imported \(model.importedCount) of \(model.totalPending)"
+    }
+
     private var progressHeader: some View {
         VStack(spacing: 8) {
             HStack {
-                Text(model.totalPending > 0
-                     ? "Imported \(model.importedCount) of \(model.totalPending)"
-                     : "Preparing…")
+                Text(headline)
                     .font(.title3.weight(.semibold))
                     .contentTransition(.numericText())
                     .animation(.default, value: model.importedCount)
                 Spacer()
-                if model.totalPending > 0 {
+                if model.progressStarted, model.totalPending > 0 {
                     Text("\(Int((Double(model.importedCount) / Double(model.totalPending) * 100).rounded()))%")
                         .font(.title3.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
             }
 
-            ProgressView(value: Double(model.importedCount), total: Double(max(model.totalPending, 1)))
-                .progressViewStyle(.linear)
+            // With nothing (left) to import, show the bar as done, not empty.
+            ProgressView(
+                value: model.progressStarted && model.totalPending == 0
+                    ? 1 : Double(model.importedCount),
+                total: model.progressStarted && model.totalPending == 0
+                    ? 1 : Double(max(model.totalPending, 1))
+            )
+            .progressViewStyle(.linear)
 
             HStack {
                 Text(model.activity)

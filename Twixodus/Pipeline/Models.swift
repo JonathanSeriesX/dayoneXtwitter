@@ -50,8 +50,8 @@ public final class Tweet {
     /// entities.media (missing key → empty).
     public let entitiesMedia: [MediaEntity]
     /// extended_entities.media, or nil when the tweet has no extended_entities
-    /// at all — the distinction matters for media counting, which mirrors
-    /// Python's `tweet.get("extended_entities", tweet.get("entities", {}))`.
+    /// at all. It's preferred over entities.media when present and non-empty —
+    /// it includes all media, even in quote tweets.
     public let extendedMedia: [MediaEntity]?
     /// (latitude, longitude) from the "coordinates" field, if geotagged.
     public let coordinate: (latitude: Double, longitude: Double)?
@@ -93,12 +93,6 @@ public final class Tweet {
         self.coordinate = coordinate
     }
 
-    /// The media list used for counting and for [{attachment}] expansion:
-    /// extended_entities.media when the tweet has extended_entities (even an
-    /// empty one), entities.media otherwise.
-    public var mediaForCounting: [MediaEntity] {
-        extendedMedia ?? entitiesMedia
-    }
 }
 
 /// One entities.urls item: a t.co link and where it really points.

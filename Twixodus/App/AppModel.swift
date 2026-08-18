@@ -46,6 +46,10 @@ final class AppModel: ObservableObject {
     @Published var isPaused = false
     @Published var importedCount = 0
     @Published var totalPending = 0
+    /// False until the engine reports its first progress (i.e. while it is
+    /// still selecting threads). The denominator can legitimately shrink to
+    /// zero later — this flag keeps the UI from reading that as "not started".
+    @Published var progressStarted = false
     @Published var activity = ""
     @Published var logLines: [LogLine] = []
     @Published var runResult: ImportRunResult?
@@ -206,6 +210,7 @@ final class AppModel: ObservableObject {
                 log: log,
                 progress: { [weak self] imported, total in
                     Task { @MainActor [weak self] in
+                        self?.progressStarted = true
                         self?.importedCount = imported
                         self?.totalPending = total
                     }
@@ -220,6 +225,7 @@ final class AppModel: ObservableObject {
         isPaused = false
         importedCount = 0
         totalPending = 0
+        progressStarted = false
         activity = "Selecting threads…"
         logLines = []
         runResult = nil

@@ -262,11 +262,11 @@ final class ImportLedgerTests: XCTestCase {
         XCTAssertTrue(ledger.loadProcessedIDs().isEmpty)
     }
 
-    func testRememberPersistsAcrossReload() {
+    func testRememberPersistsAcrossReload() throws {
         let ledger = ImportLedger(fileURL: tempFile)
         var ids = Set<String>()
-        ledger.rememberProcessed(tweetId: "1", reimportMarker: nil, processedIDs: &ids)
-        ledger.rememberProcessed(tweetId: "2", reimportMarker: "2+9", processedIDs: &ids)
+        try ledger.rememberProcessed(tweetId: "1", reimportMarker: nil, processedIDs: &ids)
+        try ledger.rememberProcessed(tweetId: "2", reimportMarker: "2+9", processedIDs: &ids)
         XCTAssertEqual(ids, ["1", "2", "2+9"])
 
         let reloaded = ImportLedger(fileURL: tempFile).loadProcessedIDs()
@@ -276,8 +276,8 @@ final class ImportLedgerTests: XCTestCase {
     func testNoDuplicateLinesWritten() throws {
         let ledger = ImportLedger(fileURL: tempFile)
         var ids = Set<String>()
-        ledger.rememberProcessed(tweetId: "1", reimportMarker: nil, processedIDs: &ids)
-        ledger.rememberProcessed(tweetId: "1", reimportMarker: nil, processedIDs: &ids)
+        try ledger.rememberProcessed(tweetId: "1", reimportMarker: nil, processedIDs: &ids)
+        try ledger.rememberProcessed(tweetId: "1", reimportMarker: nil, processedIDs: &ids)
 
         let content = try String(contentsOf: tempFile, encoding: .utf8)
         XCTAssertEqual(content, "1\n")

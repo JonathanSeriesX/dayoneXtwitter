@@ -17,7 +17,7 @@ guard arguments.count >= 2 else {
 }
 
 let root = URL(fileURLWithPath: arguments[1])
-var username: String? = arguments.count >= 3 ? arguments[2] : "JonathanSeriesX"
+var username: String? = arguments.count >= 3 ? arguments[2] : "jack"
 if username == "-" { username = nil }
 
 var config = ImportConfig()

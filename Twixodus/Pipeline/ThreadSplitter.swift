@@ -21,6 +21,10 @@ public enum ThreadSplitter {
         guard total > maxAttachmentsPerEntry, n > 1 else { return [thread] }
 
         let minParts = (total + maxAttachmentsPerEntry - 1) / maxAttachmentsPerEntry
+        // More parts needed than there are tweets means some single tweet
+        // exceeds the limit by itself — fall through to the corrupt-tweet
+        // escape hatch below instead of trapping on an empty range.
+        guard minParts <= n else { return [thread] }
         for parts in max(2, minParts)...n {
             if let split = balancedSplit(thread, into: parts, attachmentPrefix: prefix) {
                 return split

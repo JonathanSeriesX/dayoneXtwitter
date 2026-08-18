@@ -399,8 +399,20 @@ public final class ImportEngine {
         tweetId: String, reimportMarker: String?, processedIDs: inout Set<String>
     ) {
         guard config.debugTweetIDs.isEmpty else { return }
-        ledger.rememberProcessed(
-            tweetId: tweetId, reimportMarker: reimportMarker, processedIDs: &processedIDs)
+        do {
+            try ledger.rememberProcessed(
+                tweetId: tweetId, reimportMarker: reimportMarker, processedIDs: &processedIDs)
+        } catch {
+            // The entry is in Day One but its ledger line is not on disk, so a
+            // future run will import it again. Keep the in-memory set right for
+            // this run's bookkeeping, and make sure the user hears about it.
+            processedIDs.insert(tweetId)
+            if let reimportMarker { processedIDs.insert(reimportMarker) }
+            log("Couldn't record thread \(tweetId) in the import ledger "
+                + "(\(error.localizedDescription)) — the entry was created, but the next "
+                + "run won't know and will import it again. Check \(ledger.fileURL.path)",
+                .error)
+        }
     }
 
     /// Logs the thread being imported, tweet by tweet.
