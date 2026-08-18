@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds a distributable Twixodus.app and zips it into dist/.
+# Builds a distributable Twixodus.app and zips it into dist/Twixodus.zip.
 #
 #   scripts/build-release.sh [version]
 #
@@ -13,7 +13,7 @@ VERSION="${1:-0.0.0-dev}"
 IDENTITY="${CODESIGN_IDENTITY:--}"
 DERIVED=build/ReleaseDerivedData
 APP="$DERIVED/Build/Products/Release/Twixodus.app"
-ZIP="dist/Twixodus-$VERSION.zip"
+ZIP="dist/Twixodus.zip"
 
 xcodegen generate
 

@@ -44,7 +44,7 @@ jobs:
     name: Run tests
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -60,7 +60,7 @@ jobs:
     needs: test
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -121,7 +121,7 @@ jobs:
             echo "Skipping notarization (app is ad-hoc signed)."
             exit 0
           fi
-          ZIP="dist/Twixodus-$VERSION.zip"
+          ZIP="dist/Twixodus.zip"
           if [ -n "$ASC_API_KEY_P8_BASE64" ]; then
             echo "Notarizing with an App Store Connect API key…"
             echo "$ASC_API_KEY_P8_BASE64" | base64 -d > AuthKey.p8
@@ -151,12 +151,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # Second, stable-named copy: the landing page's download button points
-          # at releases/latest/download/Twixodus.zip, which only resolves if
+          # The asset is named Twixodus.zip on every release, without the
+          # version: the landing page's download button points at
+          # releases/latest/download/Twixodus.zip, which only resolves if
           # every release carries an asset by exactly that name.
-          cp "dist/Twixodus-$VERSION.zip" dist/Twixodus.zip
           gh release create "$GITHUB_REF_NAME" \
-            "dist/Twixodus-$VERSION.zip" \
             dist/Twixodus.zip \
             --title "Twixodus $VERSION" \
             --generate-notes
