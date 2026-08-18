@@ -137,55 +137,43 @@ public final class ImportEngine {
 
     public func run(threads allThreads: [TweetThread]) async -> ImportRunResult {
         var result = ImportRunResult()
-        var threads = allThreads
 
         // ---- Step 4: pick which threads to import, and in what order ------
         // Debug mode: only the listed threads, imported every time — the
         // ledger is neither consulted nor written (main.py's tweets_to_debug).
         let debugMode = !config.debugTweetIDs.isEmpty
-        if debugMode {
-            threads = ThreadSelection.filterToDebugIDs(threads, ids: config.debugTweetIDs)
-            log("Debug mode: \(threads.count) thread(s) match the listed tweet IDs.")
-        }
-
-        switch config.importOrder {
-        case .oldestFirst:
-            threads = threads.stableSorted { $0[0].createdAt < $1[0].createdAt }
-        case .newestFirst:
-            threads = threads.stableSorted { $0[0].createdAt > $1[0].createdAt }
-        case .random:
-            threads.shuffle()
-        }
-
         var processedIDs = debugMode ? Set<String>() : ledger.loadProcessedIDs()
         if !debugMode {
-            log("Loaded \(processedIDs.count) previously processed tweet IDs.")
+            log("Loaded \(processedIDs.count) previously processed tweet IDs.\n")
         }
 
-        // Threads that started inside the range are imported normally; older
-        // threads that were extended within it need a full re-import.
-        let (inRange, extended) = ThreadSelection.partitionThreadsByDate(
-            threads, startDate: config.startDate, endDate: config.endDate,
-            processedIDs: processedIDs, coveredThrough: config.lastCoveredThrough
-        )
-        if threads.count != inRange.count {
-            log("Filtered down to \(inRange.count) threads within the specified date range.")
+        // Selection lives in ThreadSelection, so the Retrieve step can ask
+        // the same question and get the same answer.
+        let runPlan = ThreadSelection.planRun(
+            allThreads, config: config, processedIDs: processedIDs)
+        let plan = runPlan.imports
+
+        if debugMode {
+            log("Debug mode: \(runPlan.consideredThreads) thread(s) match the listed tweet IDs.")
         }
-        if !extended.isEmpty {
-            log("\(extended.count) previously imported thread(s) gained new tweets "
+        if runPlan.consideredThreads != runPlan.inRangeCount {
+            log("Filtered down to \(runPlan.inRangeCount) threads within the specified date range.")
+        }
+        if runPlan.reimportCount > 0 {
+            log("\(runPlan.reimportCount) previously imported thread(s) gained new tweets "
                 + "and will be re-imported in full.")
         }
 
-        // Re-imports go first so a max-threads limit can't starve them.
-        let plan = extended.map { PlannedImport(thread: $0, isReimport: true) }
-            + inRange.map { PlannedImport(thread: $0, isReimport: false) }
-
         // ---- Steps 5 & 6: import the planned threads, one entry each ------
         result.totalPending = countPendingImports(plan, processedIDs: processedIDs)
-        // The denominator for the progress bar. It shrinks when a pending
-        // thread turns out not to produce an entry (no target journal, or Day
-        // One rejected it), so the bar can actually reach 100%.
-        var progressTotal = result.totalPending
+        // Pending threads the loop hasn't reached yet — kept as a running
+        // count so the progress denominator can be recomputed in O(1).
+        var pendingLeft = result.totalPending
+        // The denominator for the progress bar: what this run will actually
+        // deliver. With a per-run limit that's the limit, not the whole
+        // backlog — a limited run of 100 reads "12 of 100", not "12 of 1051".
+        var progressTotal = progressDenominator(
+            imported: 0, failed: 0, pendingLeft: pendingLeft)
         callbacks.progress(0, progressTotal)
 
         var reimported: [ImportedEntry] = []
@@ -206,19 +194,25 @@ public final class ImportEngine {
             // don't eat the budget on a second run.
             if let limit = config.maxThreadsToProcess,
                result.importedCount + result.failedCount >= limit {
-                if countPendingImports(Array(plan[i...]), processedIDs: processedIDs) > 0 {
+                if pendingLeft > 0 {
                     log("Stopping after processing \(limit) threads.")
                     result.stoppedAtLimit = true
                 }
                 break
             }
 
-            switch await importSingleThread(
+            let outcome = await importSingleThread(
                 planned.thread, processedIDs: &processedIDs, forceReimport: planned.isReimport
-            ) {
+            )
+            // Everything except an already-imported skip consumed one of the
+            // pending threads counted in the denominator.
+            if case .skippedAlreadyImported = outcome {} else {
+                pendingLeft = max(0, pendingLeft - 1)
+            }
+
+            switch outcome {
             case .imported(var entry):
                 result.importedCount += 1
-                callbacks.progress(result.importedCount, progressTotal)
                 if planned.isReimport {
                     entry.previousTweetCount = ThreadSelection.countTweetsBefore(
                         planned.thread, startDate: config.startDate,
@@ -229,11 +223,18 @@ public final class ImportEngine {
                 result.skippedAlreadyImported += 1
             case .skippedNoJournal:
                 result.skippedNoJournal += 1
-                progressTotal -= 1
-                callbacks.progress(result.importedCount, progressTotal)
             case .failed:
                 result.failedCount += 1
-                progressTotal -= 1
+            }
+
+            if case .skippedAlreadyImported = outcome {} else {
+                // A thread that produced no entry (no journal, or Day One
+                // rejected it) shrinks the denominator so the bar can still
+                // reach 100% — unless a limit means another thread simply
+                // takes its place.
+                progressTotal = progressDenominator(
+                    imported: result.importedCount, failed: result.failedCount,
+                    pendingLeft: pendingLeft)
                 callbacks.progress(result.importedCount, progressTotal)
             }
         }
@@ -247,6 +248,16 @@ public final class ImportEngine {
         }
 
         return result
+    }
+
+    /// What the progress bar counts up to: the entries already made plus
+    /// however many more this run can still deliver — capped by whatever is
+    /// left of the per-run limit, since the limit counts threads that reached
+    /// Day One (imported or failed).
+    private func progressDenominator(imported: Int, failed: Int, pendingLeft: Int) -> Int {
+        guard let limit = config.maxThreadsToProcess else { return imported + pendingLeft }
+        let budgetLeft = max(0, limit - imported - failed)
+        return imported + min(pendingLeft, budgetLeft)
     }
 
     /// How many planned threads this run still has to import: a re-imported

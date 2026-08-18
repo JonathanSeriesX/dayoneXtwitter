@@ -29,6 +29,21 @@ public struct HydrationRecord: Codable {
     public var tweet: HydratedTweetData?
 
     public var isOK: Bool { status == Self.statusOK }
+
+    /// True when this record needs nothing more: the tweet came through AND
+    /// every attachment it references actually landed on disk. A fetch that
+    /// succeeded but whose downloads didn't is NOT done — it's retryable, or
+    /// the attachment would be lost for good.
+    public var isComplete: Bool {
+        guard isOK, let tweet else { return false }
+        return tweet.media.allSatisfy { $0.fileName != nil }
+    }
+
+    /// Attachments this record still owes.
+    public var missingMediaCount: Int {
+        guard isOK, let tweet else { return 0 }
+        return tweet.media.filter { $0.fileName == nil }.count
+    }
 }
 
 /// The distilled syndication response — just what the overlay needs.

@@ -339,6 +339,54 @@ final class ImportEngineTests: XCTestCase {
         XCTAssertEqual(poster.calls.count, 2)
     }
 
+    func testProgressDenominatorIsTheLimitNotTheBacklog() async {
+        // A limited run reads "n of <limit>", not "n of <whole backlog>".
+        let poster = MockPoster()
+        let progress = ProgressRecorder()
+        let engine = makeEngine(
+            threadsConfig: makeConfig(maxThreads: 2), poster: poster, progress: progress)
+        let result = await engine.run(threads: ["1", "2", "3", "4", "5"].map { [makeTweet($0)] })
+
+        XCTAssertEqual(result.importedCount, 2)
+        XCTAssertEqual(result.totalPending, 5, "the backlog itself is still reported in full")
+        XCTAssertTrue(progress.history.allSatisfy { $0.total == 2 })
+        XCTAssertEqual(progress.last?.imported, 2)
+    }
+
+    func testLimitedRunKeepsItsDenominatorWhenAThreadIsSkipped() async {
+        // Without a limit a skipped thread shrinks the denominator; with one,
+        // the next pending thread simply takes its place, so the target holds.
+        let poster = MockPoster()
+        let progress = ProgressRecorder()
+        let engine = makeEngine(
+            threadsConfig: makeConfig(maxThreads: 2, replyJournal: nil),
+            poster: poster, progress: progress)
+        let reply = makeTweet("1", text: "sure thing", replyToId: "999", replyToScreenName: "bob")
+        let threads = [[reply]] + ["2", "3", "4"].map { [makeTweet($0)] }
+        let result = await engine.run(threads: threads)
+
+        XCTAssertEqual(result.skippedNoJournal, 1)
+        XCTAssertEqual(result.importedCount, 2, "the skip didn't eat the budget")
+        XCTAssertEqual(progress.last?.total, 2)
+        XCTAssertEqual(progress.last?.imported, 2)
+    }
+
+    func testDenominatorShrinksToWhatIsLeftWhenThreadsRunOut() async {
+        // Limit of 5 but only 2 threads, one of which can't be imported: the
+        // bar must still be able to reach 100%.
+        let poster = MockPoster()
+        let progress = ProgressRecorder()
+        let engine = makeEngine(
+            threadsConfig: makeConfig(maxThreads: 5, replyJournal: nil),
+            poster: poster, progress: progress)
+        let reply = makeTweet("1", text: "sure thing", replyToId: "999", replyToScreenName: "bob")
+        let result = await engine.run(threads: [[reply], [makeTweet("2")]])
+
+        XCTAssertEqual(result.importedCount, 1)
+        XCTAssertEqual(progress.last?.total, 1)
+        XCTAssertEqual(progress.last?.imported, 1)
+    }
+
     // MARK: - SOB-71: failures are counted, unrecorded, and retried next run
 
     func testFailedPostsAreCountedAndRetriedOnTheNextRun() async {

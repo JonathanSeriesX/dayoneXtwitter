@@ -23,6 +23,11 @@ public struct HydrationPlan {
 
     public var pendingRetweets: [Tweet] = []
     public var retweetsDone = 0
+    /// Recorded as gone from Twitter — a tombstone, or a 404 the endpoint may
+    /// only have meant for that moment. Retryable on demand.
+    public var retweetsUnavailable = 0
+    /// Fetched, but some of their attachments never downloaded. Retryable.
+    public var retweetsIncomplete = 0
 
     /// Distinct quoted status IDs to fetch, with the @handle for the logs.
     public var pendingQuotes: [(statusId: String, handle: String)] = []
@@ -36,19 +41,28 @@ public struct HydrationPlan {
         pendingRetweets.count + pendingQuotes.count + pendingMedia.count
     }
 
-    public var retweetsTotal: Int { pendingRetweets.count + retweetsDone }
-    public var quotesTotal: Int { pendingQuotes.count + quotesDone }
-    public var mediaTotal: Int { pendingMedia.count + mediaDone }
+    /// Items a retry run would take another swing at: everything recorded as
+    /// gone (some of those 404s are the endpoint having a bad day) plus the
+    /// fetches whose attachments didn't make it.
+    public var totalRetryable: Int {
+        retweetsUnavailable + retweetsIncomplete + quotesUnavailable
+    }
 }
 
 public enum HydrationPlanner {
 
     /// Scans the archive's tweets against the store.
+    ///
+    /// With retrying == true, everything the store holds that isn't finished —
+    /// tweets recorded as gone, and fetches whose attachments failed to
+    /// download — is planned again. That's the Retry button: a normal scan
+    /// leaves those alone so it can't hammer genuinely dead tweets every run.
     public static func plan(
         tweets: [Tweet],
         ownTweetIDs: Set<String>,
         archiveUsername: String?,
-        store: HydrationStore
+        store: HydrationStore,
+        retrying: Bool = false
     ) -> HydrationPlan {
         var plan = HydrationPlan()
         var quotesSeen = Set<String>()
@@ -57,10 +71,15 @@ public enum HydrationPlanner {
         for tweet in tweets {
             // -- Truncated retweets ------------------------------------------
             if tweet.isTruncatedRetweet {
-                if store.retweets[tweet.idStr] != nil {
-                    plan.retweetsDone += 1
-                } else {
+                switch store.retweets[tweet.idStr] {
+                case nil:
                     plan.pendingRetweets.append(tweet)
+                case let record? where record.isComplete:
+                    plan.retweetsDone += 1
+                case let record?:
+                    if record.isOK { plan.retweetsIncomplete += 1 }
+                    else { plan.retweetsUnavailable += 1 }
+                    if retrying { plan.pendingRetweets.append(tweet) }
                 }
             }
 
@@ -77,6 +96,10 @@ public enum HydrationPlanner {
                         plan.quotesDone += 1
                     } else {
                         plan.quotesUnavailable += 1
+                        if retrying, !quotesSeen.contains(statusId) {
+                            quotesSeen.insert(statusId)
+                            plan.pendingQuotes.append((statusId, handle))
+                        }
                     }
                 } else if !quotesSeen.contains(statusId) {
                     quotesSeen.insert(statusId)

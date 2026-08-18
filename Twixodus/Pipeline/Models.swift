@@ -282,6 +282,10 @@ public struct ImportConfig {
     /// ImportHistory), or nil when unknown. Lets the run spot threads that
     /// were imported whole but gained tweets since.
     public var lastCoveredThrough: Date?
+    /// Seeds the shuffle of importOrder == .random. Fixed by default, so the
+    /// random order is reproducible: the Retrieve step and the import that
+    /// follows it must agree on which threads a limited run will take.
+    public var randomSeed: UInt64 = 0x9E37_79B9_7F4A_7C15
 
     public var processTitlesWithLLM: Bool
     public var llmTitlesForSingleTweets: Bool

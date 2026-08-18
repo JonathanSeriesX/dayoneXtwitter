@@ -21,7 +21,92 @@ public struct ImportPreview {
     public var pending: Int { newThreads + grownThreads }
 }
 
+/// A tiny deterministic generator (SplitMix64), so importOrder == .random
+/// shuffles reproducibly from a seed. The Retrieve step plans against the
+/// same permutation the import will walk.
+public struct SeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    public init(seed: UInt64) {
+        self.state = seed
+    }
+
+    public mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
+}
+
+/// The threads a run will walk, in order, with the counts the log reports.
+public struct RunPlan {
+    /// Every thread the run will consider, re-imports first.
+    public var imports: [PlannedImport]
+    /// Threads left after the debug-ID filter, before the date partition.
+    public var consideredThreads: Int
+    public var reimportCount: Int
+    public var inRangeCount: Int
+}
+
 public enum ThreadSelection {
+
+    /// Step 4 in one call: narrow to the debug IDs, put the threads in the
+    /// configured order, split them by date against the ledger, and plan the
+    /// re-imports first so a per-run limit can't starve them.
+    ///
+    /// The engine runs this to build its plan; the Retrieve step runs it to
+    /// find out which threads the next import will actually touch — one
+    /// definition of "what this run does", not two.
+    public static func planRun(
+        _ threads: [TweetThread], config: ImportConfig, processedIDs: Set<String>
+    ) -> RunPlan {
+        var threads = threads
+        if !config.debugTweetIDs.isEmpty {
+            threads = filterToDebugIDs(threads, ids: config.debugTweetIDs)
+        }
+
+        switch config.importOrder {
+        case .oldestFirst:
+            threads = threads.stableSorted { $0[0].createdAt < $1[0].createdAt }
+        case .newestFirst:
+            threads = threads.stableSorted { $0[0].createdAt > $1[0].createdAt }
+        case .random:
+            var generator = SeededGenerator(seed: config.randomSeed)
+            threads.shuffle(using: &generator)
+        }
+
+        let (inRange, extended) = partitionThreadsByDate(
+            threads, startDate: config.startDate, endDate: config.endDate,
+            processedIDs: processedIDs, coveredThrough: config.lastCoveredThrough)
+
+        return RunPlan(
+            imports: extended.map { PlannedImport(thread: $0, isReimport: true) }
+                + inRange.map { PlannedImport(thread: $0, isReimport: false) },
+            consideredThreads: threads.count,
+            reimportCount: extended.count,
+            inRangeCount: inRange.count)
+    }
+
+    /// The threads this run will actually turn into entries: the ones still
+    /// pending in the ledger, cut off at the per-run limit. Already-imported
+    /// threads are dropped — the run skips them without spending its budget.
+    public static func threadsThisRunWillImport(
+        _ plan: [PlannedImport], processedIDs: Set<String>, limit: Int?
+    ) -> [TweetThread] {
+        var picked: [TweetThread] = []
+        for planned in plan {
+            if let limit, picked.count >= limit { break }
+            let key = planned.isReimport
+                ? ImportLedger.extensionMarker(planned.thread)
+                : planned.thread[0].idStr
+            if !processedIDs.contains(key) {
+                picked.append(planned.thread)
+            }
+        }
+        return picked
+    }
 
     /// Computes the ImportPreview for these threads against the ledger state,
     /// with the same selection rules the run itself will use.

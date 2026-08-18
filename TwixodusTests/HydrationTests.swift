@@ -235,6 +235,171 @@ final class HydrationTests: XCTestCase {
         XCTAssertTrue(block.contains("https://xcancel.com/a/status/5"))
     }
 
+    // MARK: - Retryable records
+
+    private func truncatedRetweet(id: String) -> Tweet {
+        let tweet = Fixtures.tweet(id: id, text: "RT @a: cut…")
+        tweet.isRetweet = true
+        tweet.isTruncatedRetweet = true
+        return tweet
+    }
+
+    private func withMedia(_ data: HydratedTweetData, fileName: String?) -> HydratedTweetData {
+        var copy = data
+        copy.media = [HydratedMediaFile(
+            tco: "https://t.co/m", type: "photo",
+            sourceURL: "https://pbs.twimg.com/media/x.jpg?name=orig", fileName: fileName)]
+        return copy
+    }
+
+    func testRecordWithUndownloadedMediaIsNotComplete() {
+        let downloaded = okRecord(withMedia(original(text: "hi"), fileName: "1-x.jpg"))
+        let failed = okRecord(withMedia(original(text: "hi"), fileName: nil))
+        XCTAssertTrue(downloaded.isComplete)
+        XCTAssertTrue(failed.isOK, "the text is still worth keeping")
+        XCTAssertFalse(failed.isComplete, "but the attachment is still owed")
+        XCTAssertEqual(failed.missingMediaCount, 1)
+    }
+
+    func testHalfDownloadedRetweetIsRetryableNotDone() {
+        let store = makeStore()
+        let tweet = truncatedRetweet(id: "1")
+        store.retweets["1"] = okRecord(withMedia(original(text: "full"), fileName: nil))
+
+        let scan = HydrationPlanner.plan(
+            tweets: [tweet], ownTweetIDs: ["1"], archiveUsername: nil, store: store)
+        XCTAssertEqual(scan.retweetsDone, 0)
+        XCTAssertEqual(scan.retweetsIncomplete, 1)
+        XCTAssertEqual(scan.totalPending, 0, "a normal scan leaves it alone")
+        XCTAssertEqual(scan.totalRetryable, 1)
+
+        let retry = HydrationPlanner.plan(
+            tweets: [tweet], ownTweetIDs: ["1"], archiveUsername: nil,
+            store: store, retrying: true)
+        XCTAssertEqual(retry.pendingRetweets.map(\.idStr), ["1"])
+    }
+
+    func testUnavailableRecordsAreOnlyPlannedWhenRetrying() {
+        let store = makeStore()
+        let tweet = truncatedRetweet(id: "1")
+        store.retweets["1"] = HydrationRecord(
+            status: HydrationRecord.statusUnavailable,
+            reason: "Not found (HTTP 404) — deleted, or the endpoint declined",
+            fetchedAt: Date(), tweet: nil)
+        let quoter = Fixtures.tweet(id: "2", text: "look", urls: [URLEntity(
+            url: "https://t.co/q", expandedURL: "https://x.com/a/status/555", displayURL: nil)])
+        store.quotes["555"] = HydrationRecord(
+            status: HydrationRecord.statusUnavailable, reason: "suspended",
+            fetchedAt: Date(), tweet: nil)
+
+        let scan = HydrationPlanner.plan(
+            tweets: [tweet, quoter], ownTweetIDs: ["1", "2"], archiveUsername: nil, store: store)
+        XCTAssertEqual(scan.totalPending, 0)
+        XCTAssertEqual(scan.retweetsUnavailable, 1)
+        XCTAssertEqual(scan.quotesUnavailable, 1)
+        XCTAssertEqual(scan.totalRetryable, 2)
+
+        let retry = HydrationPlanner.plan(
+            tweets: [tweet, quoter], ownTweetIDs: ["1", "2"], archiveUsername: nil,
+            store: store, retrying: true)
+        XCTAssertEqual(retry.pendingRetweets.map(\.idStr), ["1"])
+        XCTAssertEqual(retry.pendingQuotes.map(\.statusId), ["555"])
+    }
+
+    func testRetryingLeavesFinishedRecordsAlone() {
+        let store = makeStore()
+        let tweet = truncatedRetweet(id: "1")
+        store.retweets["1"] = okRecord(withMedia(original(text: "full"), fileName: "1-x.jpg"))
+
+        let retry = HydrationPlanner.plan(
+            tweets: [tweet], ownTweetIDs: ["1"], archiveUsername: nil,
+            store: store, retrying: true)
+        XCTAssertEqual(retry.totalPending, 0)
+        XCTAssertEqual(retry.retweetsDone, 1)
+    }
+
+    // MARK: - Scoping the scan to what the run will import
+
+    private func threadsForRun(
+        _ threads: [TweetThread], config: ImportConfig, processedIDs: Set<String> = []
+    ) -> [TweetThread] {
+        let plan = ThreadSelection.planRun(threads, config: config, processedIDs: processedIDs)
+        return ThreadSelection.threadsThisRunWillImport(
+            plan.imports, processedIDs: processedIDs, limit: config.maxThreadsToProcess)
+    }
+
+    func testRunSelectionHonorsTheLedger() {
+        let threads = ["1", "2", "3"].map { [Fixtures.tweet(id: $0)] }
+        let picked = threadsForRun(threads, config: ImportConfig(), processedIDs: ["1", "2"])
+        XCTAssertEqual(picked.map { $0[0].idStr }, ["3"])
+    }
+
+    func testRunSelectionHonorsTheLimitAndOrder() {
+        let threads = (1...5).map {
+            [Fixtures.tweet(id: "\($0)", createdAt: PipelineDates.date(2020, 1, $0))]
+        }
+        var oldest = ImportConfig(maxThreadsToProcess: 2, importOrder: .oldestFirst)
+        XCTAssertEqual(threadsForRun(threads, config: oldest).map { $0[0].idStr }, ["1", "2"])
+
+        oldest.importOrder = .newestFirst
+        XCTAssertEqual(threadsForRun(threads, config: oldest).map { $0[0].idStr }, ["5", "4"])
+
+        oldest.importOrder = .random
+        let first = threadsForRun(threads, config: oldest).map { $0[0].idStr }
+        let second = threadsForRun(threads, config: oldest).map { $0[0].idStr }
+        XCTAssertEqual(first.count, 2)
+        XCTAssertEqual(first, second, "a seeded shuffle, so Retrieve and Import pick the same threads")
+    }
+
+    func testRunSelectionHonorsTheDateRange() {
+        let threads = [
+            [Fixtures.tweet(id: "old", createdAt: PipelineDates.date(2019, 6, 1))],
+            [Fixtures.tweet(id: "new", createdAt: PipelineDates.date(2021, 6, 1))],
+        ]
+        let config = ImportConfig(
+            startDate: PipelineDates.date(2021, 1, 1), endDate: PipelineDates.date(2022, 1, 1))
+        XCTAssertEqual(threadsForRun(threads, config: config).map { $0[0].idStr }, ["new"])
+    }
+
+    func testConfigSkipsMatchTheJournalRules() {
+        let retweet = [Fixtures.tweet(id: "1", text: "RT @a: hello")]
+        let reply = [Fixtures.tweet(id: "2", text: "@bob sure", replyToStatus: "9",
+                                    replyToScreenName: "bob")]
+        let plain = [Fixtures.tweet(id: "3", text: "hello")]
+
+        var config = ImportConfig(replyJournalName: "Replies", ignoreRetweets: false)
+        for thread in [retweet, reply, plain] {
+            XCTAssertFalse(ThreadCategorizer.isSkippedByConfig(thread, config: config))
+        }
+
+        config.ignoreRetweets = true
+        config.replyJournalName = nil
+        XCTAssertTrue(ThreadCategorizer.isSkippedByConfig(retweet, config: config))
+        XCTAssertTrue(ThreadCategorizer.isSkippedByConfig(reply, config: config))
+        XCTAssertFalse(ThreadCategorizer.isSkippedByConfig(plain, config: config))
+    }
+
+    func testKindAgreesWithTheCategoryItProduces() {
+        // kind() decides the journal without touching the thread; the category
+        // it leads to must match. (threadCategory mutates, so kind runs first.)
+        let context = ThreadCategorizer.Context(ownTweetIDs: [], currentUsername: "me")
+        let cases: [(TweetThread, ThreadCategorizer.ThreadKind, String)] = [
+            ([Fixtures.tweet(id: "1", text: "RT @a: hi")], .retweet, "Retweeted "),
+            ([Fixtures.tweet(id: "2", text: "look", urls: [URLEntity(
+                url: "https://t.co/x", expandedURL: "https://x.com/a/status/5",
+                displayURL: nil)])], .quote, "Quoted "),
+            ([Fixtures.tweet(id: "3", text: "@bob sure", replyToStatus: "9",
+                             replyToScreenName: "bob")], .reply, "Replied to "),
+            ([Fixtures.tweet(id: "4", text: "just a tweet")], .own, "Tweeted"),
+        ]
+        for (thread, expectedKind, expectedPrefix) in cases {
+            XCTAssertEqual(ThreadCategorizer.kind(thread), expectedKind)
+            XCTAssertTrue(
+                ThreadCategorizer.threadCategory(thread, context: context).hasPrefix(expectedPrefix),
+                "kind \(expectedKind) should lead to a “\(expectedPrefix)…” category")
+        }
+    }
+
     // MARK: - Store round-trip
 
     func testStoreRoundTrip() throws {

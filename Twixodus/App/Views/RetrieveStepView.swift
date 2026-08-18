@@ -36,7 +36,10 @@ struct RetrieveStepView: View {
                 } header: {
                     Text("What can be retrieved")
                 } footer: {
-                    Text("Uses Twitter's public embed endpoint — no login or API key. "
+                    Text("Covers the \(model.retrieveScope) tweets the next import will "
+                        + "actually bring in — narrow the run (date range, per-run limit, "
+                        + "specific tweets) and this narrows with it.\n\n"
+                        + "Uses Twitter's public embed endpoint — no login or API key. "
                         + "One polite request per item (~2 per second), so large "
                         + "batches take a few minutes. Everything is saved next to your "
                         + "archive in “\(model.hydrationStore?.folder.lastPathComponent ?? "…-hydration")” "
@@ -57,21 +60,28 @@ struct RetrieveStepView: View {
                 title: "Truncated retweets",
                 subtitle: "Retweets the archive cut at 140 characters — their full text "
                     + "and attachments can be recovered",
-                pending: plan.pendingRetweets.count, done: plan.retweetsDone, unavailable: 0)
+                pending: plan.pendingRetweets.count, done: plan.retweetsDone,
+                unavailable: plan.retweetsUnavailable, incomplete: plan.retweetsIncomplete)
             row(icon: "quote.opening",
                 title: "Quoted tweets",
                 subtitle: "Tweets you quoted — retrieved and shown as a blockquote "
                     + "under your comment",
                 pending: plan.pendingQuotes.count, done: plan.quotesDone,
-                unavailable: plan.quotesUnavailable)
+                unavailable: plan.quotesUnavailable, incomplete: 0)
             row(icon: "photo.on.rectangle.angled",
                 title: "Missing media files",
                 subtitle: "Photos and videos your archive references but doesn't "
                     + "contain — still downloadable in full quality",
-                pending: plan.pendingMedia.count, done: plan.mediaDone, unavailable: 0)
-            if plan.totalPending == 0 {
+                pending: plan.pendingMedia.count, done: plan.mediaDone,
+                unavailable: 0, incomplete: 0)
+            if plan.totalPending == 0, plan.totalRetryable == 0 {
                 Label("Everything retrievable has been retrieved.", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
+            } else if plan.totalPending == 0 {
+                Label("\(plan.totalRetryable) item\(plan.totalRetryable == 1 ? "" : "s") didn't come "
+                    + "through. Most of those are genuinely deleted or private.",
+                      systemImage: "arrow.clockwise.circle.fill")
+                    .foregroundStyle(.orange)
             }
         } else {
             Text("Scanning the archive…")
@@ -80,7 +90,7 @@ struct RetrieveStepView: View {
     }
 
     private func row(icon: String, title: String, subtitle: String,
-                     pending: Int, done: Int, unavailable: Int) -> some View {
+                     pending: Int, done: Int, unavailable: Int, incomplete: Int) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Image(systemName: icon)
                 .frame(width: 22)
@@ -96,8 +106,8 @@ struct RetrieveStepView: View {
                 Text("\(pending)")
                     .font(.title3.weight(.semibold).monospacedDigit())
                     .foregroundStyle(pending > 0 ? .primary : .secondary)
-                if done > 0 || unavailable > 0 {
-                    Text(doneNote(done: done, unavailable: unavailable))
+                if done > 0 || unavailable > 0 || incomplete > 0 {
+                    Text(doneNote(done: done, unavailable: unavailable, incomplete: incomplete))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -106,10 +116,11 @@ struct RetrieveStepView: View {
         .padding(.vertical, 2)
     }
 
-    private func doneNote(done: Int, unavailable: Int) -> String {
+    private func doneNote(done: Int, unavailable: Int, incomplete: Int) -> String {
         var parts: [String] = []
         if done > 0 { parts.append("\(done) already retrieved") }
-        if unavailable > 0 { parts.append("\(unavailable) gone from Twitter") }
+        if unavailable > 0 { parts.append("\(unavailable) reported gone") }
+        if incomplete > 0 { parts.append("\(incomplete) missing attachments") }
         return parts.joined(separator: ", ")
     }
 
@@ -216,6 +227,16 @@ struct RetrieveStepView: View {
                 Button("Back") { model.backToConfigure() }
                     .secondaryActionButtonStyle()
 
+                if retryableCount > 0 {
+                    Button("Retry \(retryableCount) Failed") {
+                        model.startRetrieval(retryingFailures: true)
+                    }
+                    .secondaryActionButtonStyle()
+                    .help("Asks again for the tweets recorded as gone and the attachments "
+                        + "that failed to download — the endpoint refuses requests in ways "
+                        + "that look just like a deleted tweet.")
+                }
+
                 Spacer()
 
                 if model.dayOneBinary == nil {
@@ -242,6 +263,10 @@ struct RetrieveStepView: View {
 
     private var pendingCount: Int {
         model.hydrationPlan?.totalPending ?? 0
+    }
+
+    private var retryableCount: Int {
+        model.hydrationPlan?.totalRetryable ?? 0
     }
 
     private var nothingToImport: Bool {

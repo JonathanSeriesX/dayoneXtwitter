@@ -67,6 +67,9 @@ final class AppModel: ObservableObject {
     // MARK: - Retrieval run (the Retrieve step)
 
     @Published var hydrationPlan: HydrationPlan?
+    /// How many tweets the scan covered — i.e. what the next import will
+    /// touch, which is what the Retrieve screen promises to fill in.
+    @Published var retrieveScope = 0
     @Published var isRetrieving = false
     @Published var retrieveDone = 0
     @Published var retrieveTotal = 0
@@ -74,6 +77,9 @@ final class AppModel: ObservableObject {
     @Published var retrieveSummary: String?
     private(set) var hydrationStore: HydrationStore?
     private var retrieveTask: Task<Void, Never>?
+    /// The tweets the last scan covered — kept so a retry can re-plan over
+    /// exactly the same scope without redoing the thread selection.
+    private var hydrationScopeTweets: [Tweet] = []
 
     let settings = AppSettings()
     let control = ImportControl()
@@ -165,24 +171,49 @@ final class AppModel: ObservableObject {
             hydrationPlan = nil
             return
         }
-        // The "Specific tweets only" debug list narrows retrieval the same
-        // way it narrows the import, so a test run stays a test run.
-        var tweets = archive.tweets
-        let debugIDs = settings.debugTweetIDs
-        if !debugIDs.isEmpty {
-            tweets = tweets.filter { debugIDs.contains($0.idStr) }
-        }
+        // Retrieval covers exactly what the next import will touch — not the
+        // whole archive. Everything that narrows a run narrows this too: the
+        // ledger, the date range, the debug ID list, the per-run limit and
+        // its order, plus threads the config skips outright (retweets when
+        // they're off, replies with no reply journal).
+        var config = settings.buildConfig()
+        config.lastCoveredThrough = lastCoveredDate
+        let processedIDs = config.debugTweetIDs.isEmpty
+            ? (ledger?.loadProcessedIDs() ?? []) : []
+        let runPlan = ThreadSelection.planRun(
+            archive.threads, config: config, processedIDs: processedIDs)
+        let tweets = ThreadSelection
+            .threadsThisRunWillImport(runPlan.imports, processedIDs: processedIDs,
+                                      limit: config.maxThreadsToProcess)
+            .filter { !ThreadCategorizer.isSkippedByConfig($0, config: config) }
+            .flatMap { $0 }
+
+        hydrationScopeTweets = tweets
         hydrationPlan = HydrationPlanner.plan(
             tweets: tweets,
             ownTweetIDs: archive.ownTweetIDs,
             archiveUsername: archive.archiveUsername,
             store: hydrationStore)
+        retrieveScope = tweets.count
     }
 
-    func startRetrieval() {
+    /// Runs the retrieval. With retryingFailures, the plan also picks up
+    /// everything the store recorded as gone or half-finished — a 404 from
+    /// this endpoint isn't always the last word, and an attachment that
+    /// failed to download deserves another go.
+    func startRetrieval(retryingFailures: Bool = false) {
         guard let hydrationStore, retrieveTask == nil, !isImporting else { return }
         refreshHydrationPlan()
-        guard let plan = hydrationPlan, plan.totalPending > 0 else { return }
+        var plan = hydrationPlan
+        if retryingFailures, let archive {
+            plan = HydrationPlanner.plan(
+                tweets: hydrationScopeTweets,
+                ownTweetIDs: archive.ownTweetIDs,
+                archiveUsername: archive.archiveUsername,
+                store: hydrationStore,
+                retrying: true)
+        }
+        guard let plan, plan.totalPending > 0 else { return }
 
         isRetrieving = true
         isPaused = false
@@ -240,6 +271,7 @@ final class AppModel: ObservableObject {
         if result.quotesRetrieved > 0 { parts.append("\(result.quotesRetrieved) quoted tweets retrieved") }
         if result.filesDownloaded > 0 { parts.append("\(result.filesDownloaded) files downloaded") }
         if result.unavailable > 0 { parts.append("\(result.unavailable) tweets turned out gone") }
+        if result.incomplete > 0 { parts.append("\(result.incomplete) missing some attachments") }
         if result.failures > 0 { parts.append("\(result.failures) requests failed") }
         var summary = parts.isEmpty ? "Nothing new was retrieved" : parts.joined(separator: ", ")
         if result.wasCancelled { summary = "Cancelled — \(summary)" }

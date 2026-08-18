@@ -60,7 +60,10 @@ public final class SyndicationClient {
         case 200:
             break
         case 404:
-            return .unavailable("Deleted or never existed")
+            // The endpoint 404s both for tweets that really are gone and when
+            // it simply declines to answer, so this is recorded as retryable
+            // rather than treated as the last word (see HydrationPlanner).
+            return .unavailable("Not found (HTTP 404) — deleted, or the endpoint declined")
         case 429, 403:
             return .failed("Rate limited (HTTP \(status))")
         default:

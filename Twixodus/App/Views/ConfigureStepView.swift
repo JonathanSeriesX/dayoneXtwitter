@@ -53,6 +53,23 @@ struct ConfigureStepView: View {
         settings.journalName.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    /// Which threads the limit takes, spelled out — the import order decides,
+    /// and that picker lives in another section.
+    private var limitSelectionNote: String {
+        let count = max(settings.maxThreadsToProcess, 0)
+        switch settings.importOrder {
+        case .oldestFirst:
+            return "Takes the \(count) oldest threads still to import. "
+                + "Change “Import order” above to take the newest, or a random sample."
+        case .newestFirst:
+            return "Takes the \(count) newest threads still to import. "
+                + "Change “Import order” above to take the oldest, or a random sample."
+        case .random:
+            return "Takes \(count) random threads out of everything still to import — "
+                + "handy for previewing what entries will look like."
+        }
+    }
+
     /// A setting's explanatory note. Stack it with the setting in one row, so
     /// no separator line comes between them.
     private func note(_ text: String) -> some View {
@@ -102,12 +119,43 @@ struct ConfigureStepView: View {
         }
     }
 
+    /// Which threads a binding per-run limit will pick — that's the import
+    /// order's doing: the run sorts by it, then stops at the limit. Nil when
+    /// the limit is off or wouldn't bite anyway.
+    private var limitedSelection: String? {
+        guard settings.limitThreads, settings.maxThreadsToProcess > 0,
+              let preview = model.importPreview,
+              preview.pending > settings.maxThreadsToProcess
+        else { return nil }
+        return "\(orderedCount(settings.maxThreadsToProcess)) of \(preview.pending) pending threads"
+    }
+
+    /// "the 100 oldest" / "the 100 newest" / "100 random".
+    private func orderedCount(_ count: Int) -> String {
+        switch settings.importOrder {
+        case .oldestFirst: return "the \(count) oldest"
+        case .newestFirst: return "the \(count) newest"
+        case .random: return "\(count) random"
+        }
+    }
+
     /// The one-line verdict of what pressing the import button will do.
     private var statusText: String? {
         guard let preview = model.importPreview else { return nil }
         if !settings.debugTweetIDs.isEmpty {
             return "Debug run — \(preview.pending) thread\(preview.pending == 1 ? "" : "s") "
                 + "matching the listed tweet IDs; the ledger is ignored, nothing is recorded"
+        }
+        if let limitedSelection {
+            var parts = ["Limited run — importing \(limitedSelection)"]
+            if preview.grownThreads > 0 {
+                parts.append("\(preview.grownThreads) of them grew since their import "
+                    + "and are re-imported in full")
+            }
+            if preview.alreadyImported > 0 {
+                parts.append("\(preview.alreadyImported) already imported and skipped")
+            }
+            return parts.joined(separator: "; ")
         }
         if preview.alreadyImported == 0 {
             return "First import — all \(preview.newThreads) threads will be imported"
@@ -239,9 +287,12 @@ struct ConfigureStepView: View {
                 }
             }
 
-            Toggle("Limit threads per run", isOn: $settings.limitThreads)
-            if settings.limitThreads {
-                TextField("Max threads", value: $settings.maxThreadsToProcess, format: .number)
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Limit threads per run", isOn: $settings.limitThreads)
+                if settings.limitThreads {
+                    TextField("Max threads", value: $settings.maxThreadsToProcess, format: .number)
+                    note(limitSelectionNote)
+                }
             }
 
             VStack(alignment: .leading, spacing: 4) {

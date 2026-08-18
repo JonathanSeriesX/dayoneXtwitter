@@ -206,6 +206,71 @@ public enum ThreadCategorizer {
         return first.fullText.hasPrefix("RT @") || first.fullText.hasPrefix("RT \"@")
     }
 
+    /// What a thread is, as far as the journal it lands in is concerned.
+    /// threadCategory() branches on this, and so can callers that must NOT
+    /// categorize — kind() is read-only, while categorization rewrites the
+    /// tweet's text in place and may run only once per thread.
+    public enum ThreadKind {
+        case retweet
+        case quote
+        case reply
+        /// The user's own: a thread, a callout, or a plain tweet.
+        case own
+    }
+
+    /// Whether the tweet carries a Twitter/X link that isn't one of its own
+    /// media placeholders — the marker of a quote tweet in archives that
+    /// predate quoted_status_id_str.
+    private static func hasNonMediaTwitterLink(_ tweet: Tweet) -> Bool {
+        var mediaUrlsTco = Set(tweet.extendedMedia?.compactMap(\.url) ?? [])
+        if mediaUrlsTco.isEmpty {
+            mediaUrlsTco = Set(tweet.entitiesMedia.compactMap(\.url))
+        }
+        for urlEntity in tweet.urls {
+            guard let expanded = urlEntity.expandedURL else { continue }
+            if (expanded.contains("https://twitter.com") || expanded.contains("https://x.com")),
+               !(urlEntity.url.map { mediaUrlsTco.contains($0) } ?? false) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Whether replyCategory() will find anyone to name. When it can't, the
+    /// thread isn't treated as a reply at all (it keeps a plain title and the
+    /// ordinary journal), so kind() must agree.
+    private static func replyNamesSomeone(_ tweet: Tweet) -> Bool {
+        if handleRegex.search(tweet.fullText) != nil { return true }
+        return !(tweet.inReplyToScreenName ?? "").isEmpty
+    }
+
+    /// Categorizes a thread without touching it. The branch order is
+    /// threadCategory()'s, which is the point: both must agree on which
+    /// journal a thread is bound for.
+    public static func kind(_ thread: TweetThread) -> ThreadKind {
+        guard let first = thread.first else { return .own }
+
+        if isDirectRetweet(thread) { return .retweet }
+
+        let isReply = first.inReplyToStatusIdStr != nil
+        if hasNonMediaTwitterLink(first) && !isReply { return .quote }
+        if first.fullText.contains(" RT @") { return .quote }
+        if isReply && replyNamesSomeone(first) { return .reply }
+
+        return .own
+    }
+
+    /// Whether the run will skip this thread outright because of the config:
+    /// a retweet with retweets off, a reply with no reply journal. Read-only,
+    /// so the Retrieve step can ask before anything is categorized.
+    public static func isSkippedByConfig(_ thread: TweetThread, config: ImportConfig) -> Bool {
+        switch kind(thread) {
+        case .retweet: return config.ignoreRetweets
+        case .reply: return config.replyJournalName == nil
+        case .quote, .own: return false
+        }
+    }
+
     /// Categorizes a tweet thread based on the characteristics of its first
     /// tweet: 'Wrote a thread' (multiple tweets), 'Retweeted ...',
     /// 'Quoted ...', 'Replied to ...', 'Callout to ...', or a plain 'Tweeted'.
@@ -214,37 +279,11 @@ public enum ThreadCategorizer {
             return "Empty threat"  // again, we should just segfault at this point
         }
 
-        let isRetweet = isDirectRetweet(thread)
-
-        let isReply = first.inReplyToStatusIdStr != nil
-        let isCallout = !isReply
-            && (first.fullText.hasPrefix("@") || first.fullText.hasPrefix(".@"))
-
-        // Check for Twitter/X links in urls entities that are NOT media URLs.
-        // This helps identify quote tweets that are not explicitly marked with
-        // 'quoted_status_id_str'. Media t.co URLs are excluded so media links
-        // aren't incorrectly identified as quote tweets.
-        var mediaUrlsTco = Set(first.extendedMedia?.compactMap(\.url) ?? [])
-        if mediaUrlsTco.isEmpty {
-            mediaUrlsTco = Set(first.entitiesMedia.compactMap(\.url))
-        }
-
-        var hasNonMediaTwitterLink = false
-        for urlEntity in first.urls {
-            guard let expanded = urlEntity.expandedURL else { continue }
-            // A link counts if it points to twitter.com or x.com and its t.co
-            // URL is not one of the media t.co URLs.
-            if (expanded.contains("https://twitter.com") || expanded.contains("https://x.com")),
-               !(urlEntity.url.map { mediaUrlsTco.contains($0) } ?? false) {
-                hasNonMediaTwitterLink = true
-                break
-            }
-        }
-
-        // Categorize based on tweet properties, with more specific categories first.
-
-        // A single tweet starting with "RT @", and not part of a larger thread, is a retweet.
-        if isRetweet {
+        // Which branch to take is kind()'s call — read-only, and shared with
+        // the callers that need the journal without categorizing. Only the
+        // naming (and the RT prefix strip) happens here.
+        switch kind(thread) {
+        case .retweet:
             if let name = extractRetweetInPlace(first) {
                 return "Retweeted \(name)"
             }
@@ -254,34 +293,28 @@ public enum ThreadCategorizer {
                 return "Retweeted \(displayName(caseInsensitiveNameMap(first), handle))"
             }
             return "Retweeted someone"
-        }
 
-        // A tweet with a non-media Twitter/X link and not a reply is a quote tweet.
-        if hasNonMediaTwitterLink && !isReply {
+        case .quote:
             let name = describeQuoteTarget(first, context: context)
             return "Quoted \(name ?? fallbackQuoteTarget(first, context: context))"
-        }
 
-        if first.fullText.contains(" RT @") {
-            let name = describeQuoteTarget(first, context: context)
-            return "Quoted \(name ?? fallbackQuoteTarget(first, context: context))"
-        }
-
-        if isReply {
+        case .reply:
             return replyCategory(first)
-        }
 
-        // A bare "@" with nothing readable after it isn't a callout — it's
-        // just a tweet that happens to start with the character. Fall through.
-        if isCallout, let callouts = extractCallouts(first) {
-            return "Callout to \(callouts)"
+        case .own:
+            // A bare "@" with nothing readable after it isn't a callout — it's
+            // just a tweet that happens to start with the character.
+            let isReply = first.inReplyToStatusIdStr != nil
+            let isCallout = !isReply
+                && (first.fullText.hasPrefix("@") || first.fullText.hasPrefix(".@"))
+            if isCallout, let callouts = extractCallouts(first) {
+                return "Callout to \(callouts)"
+            }
+            // A thread with more than one tweet is always a thread of one's own.
+            if thread.count > 1 {
+                return "Wrote a thread"
+            }
+            return "Tweeted"
         }
-
-        // A thread with more than one tweet is always a thread of one's own.
-        if thread.count > 1 {
-            return "Wrote a thread"
-        }
-
-        return "Tweeted"
     }
 }

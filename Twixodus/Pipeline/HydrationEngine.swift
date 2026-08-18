@@ -17,6 +17,9 @@ public struct HydrationRunResult {
     public var unavailable = 0
     public var filesDownloaded = 0
     public var failures = 0
+    /// Tweets that came through but couldn't bring all their attachments —
+    /// recorded anyway (the text is worth keeping) and retryable afterwards.
+    public var incomplete = 0
     public var wasCancelled = false
     public var abortedByErrors = false
 }
@@ -69,9 +72,13 @@ public final class HydrationEngine {
                 store.retweets[tweet.idStr] = record(ok: data)
                 result.retweetsRetrieved += 1
                 let attachments = data.media.filter { $0.fileName != nil }.count
+                let missing = data.media.count - attachments
+                if missing > 0 { result.incomplete += 1 }
                 log("Retweet of @\(data.screenName): full text recovered"
-                    + (attachments > 0 ? " (+\(attachments) attachment\(attachments == 1 ? "" : "s"))" : ""),
-                    .success)
+                    + (attachments > 0 ? " (+\(attachments) attachment\(attachments == 1 ? "" : "s"))" : "")
+                    + (missing > 0 ? " — \(missing) attachment\(missing == 1 ? "" : "s") failed, "
+                        + "use Retry to try again" : ""),
+                    missing > 0 ? .warning : .success)
             case .unavailable(let reason):
                 store.retweets[tweet.idStr] = record(unavailable: reason)
                 result.unavailable += 1
@@ -109,15 +116,12 @@ public final class HydrationEngine {
             guard await keepGoing(&result) else { return finish(result) }
             callbacks.activity("Downloading \(item.fileName)…")
 
-            do {
-                let bytes = try await client.download(item.sourceURL, to: store.mediaPath(item.fileName))
+            if let bytes = await downloadWithBackoff(item.sourceURL, fileName: item.fileName) {
                 result.filesDownloaded += 1
-                consecutiveFailures = 0
                 log("Downloaded \(item.fileName) (\(Self.byteCount(bytes)))", .success)
-            } catch {
+            } else {
+                // Nothing was written, so the next scan lists it again anyway.
                 result.failures += 1
-                consecutiveFailures += 1
-                log("Couldn't download \(item.fileName): \(error.localizedDescription)", .warning)
             }
             await step(&result)
         }
@@ -145,7 +149,9 @@ public final class HydrationEngine {
     }
 
     /// Downloads a fetched tweet's attachments into the store's media folder,
-    /// stamping each item's fileName on success.
+    /// stamping each item's fileName on success. An attachment left unstamped
+    /// makes the whole record incomplete, so a later Retry comes back for it
+    /// instead of the file being lost to one bad moment on the network.
     private func downloadMedia(
         _ media: [HydratedMediaFile], ownerId: String, result: inout HydrationRunResult
     ) async -> [HydratedMediaFile] {
@@ -155,17 +161,39 @@ public final class HydrationEngine {
             let item = stamped[index]
             let fileName = SyndicationClient.fileName(
                 ownerTweetId: ownerId, sourceURL: item.sourceURL, type: item.type)
-            do {
-                let bytes = try await client.download(item.sourceURL, to: store.mediaPath(fileName))
+            if let bytes = await downloadWithBackoff(item.sourceURL, fileName: fileName) {
                 stamped[index].fileName = fileName
                 result.filesDownloaded += 1
                 log("Downloaded \(fileName) (\(Self.byteCount(bytes)))", .info)
-            } catch {
+            } else {
                 result.failures += 1
-                log("Couldn't download \(fileName): \(error.localizedDescription)", .warning)
             }
         }
         return stamped
+    }
+
+    /// One download, retried on the same ladder as a fetch. Returns the byte
+    /// count, or nil once every attempt has failed.
+    private func downloadWithBackoff(_ sourceURL: String, fileName: String) async -> Int? {
+        var lastError = ""
+        for (attempt, delay) in ([0] + Self.backoff).enumerated() {
+            if delay > 0 {
+                guard !control.isCancelled else { break }
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+            do {
+                let bytes = try await client.download(sourceURL, to: store.mediaPath(fileName))
+                consecutiveFailures = 0
+                return bytes
+            } catch {
+                lastError = error.localizedDescription
+                if attempt == Self.backoff.count {
+                    consecutiveFailures += 1
+                }
+            }
+        }
+        log("Couldn't download \(fileName): \(lastError) — kept as retryable", .warning)
+        return nil
     }
 
     // MARK: - Housekeeping between items
