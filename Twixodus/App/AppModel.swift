@@ -2,6 +2,7 @@
 // archive, drives the import engine on a background task, and relays its
 // progress to the UI.
 
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -67,9 +68,16 @@ final class AppModel: ObservableObject {
 
     /// The resolved Day One CLI binary, re-checked when the configure screen appears.
     @Published var dayOneBinary: String? = DayOneCLI.resolveBinary()
+    /// Where the Day One app itself is installed, if anywhere.
+    @Published var dayOneAppURL: URL? = NSWorkspace.shared
+        .urlForApplication(withBundleIdentifier: AppModel.dayOneBundleID)
+
+    static let dayOneBundleID = "com.bloombuilt.dayone-mac"
 
     func refreshDayOneBinary() {
         dayOneBinary = DayOneCLI.resolveBinary()
+        dayOneAppURL = NSWorkspace.shared
+            .urlForApplication(withBundleIdentifier: Self.dayOneBundleID)
     }
 
     // MARK: - Step 0: taking the dropped archive

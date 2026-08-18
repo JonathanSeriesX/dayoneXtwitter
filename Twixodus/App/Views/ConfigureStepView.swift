@@ -22,7 +22,6 @@ struct ConfigureStepView: View {
                 journalsSection
                 optionsSection
                 llmSection
-                dayOneSection
                 debugSection
             }
             .formStyle(.grouped)
@@ -152,10 +151,41 @@ struct ConfigureStepView: View {
             if settings.importReplies {
                 TextField("Journal for replies", text: $settings.replyJournalName)
             }
+            dayOneStatusRow
         } header: {
             Text("Journals")
         } footer: {
-            note("Create these journals in Day One first — the CLI won't create them for you.")
+            note("Create these journals in Day One first — the CLI won't create them for you. "
+                + "\nKeep the Day One app running during the import: it's what moves staged media into the entries.")
+        }
+    }
+
+    /// One row confirming Day One and its CLI are ready — or what's missing.
+    @ViewBuilder
+    private var dayOneStatusRow: some View {
+        if let binary = model.dayOneBinary, model.dayOneAppURL != nil {
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Day One and its CLI are installed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                note("Using \(binary)")
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                if model.dayOneAppURL == nil {
+                    Label("The Day One app doesn't seem to be installed", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Link("Get Day One", destination: URL(string: "https://dayoneapp.com")!)
+                        .font(.footnote)
+                }
+                if model.dayOneBinary == nil {
+                    Label("The Day One CLI isn't installed", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    note("Install it from Day One's own guide, then come back — this screen re-checks automatically.")
+                    Link("Open the install instructions",
+                         destination: URL(string: "https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/")!)
+                        .font(.footnote)
+                }
+            }
         }
     }
 
@@ -206,25 +236,6 @@ struct ConfigureStepView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-        }
-    }
-
-    private var dayOneSection: some View {
-        Section {
-            if model.dayOneBinary == nil {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("The Day One CLI isn't installed", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    note("Install it from Day One's own guide, then come back — this screen re-checks automatically.")
-                    Link("Open the install instructions",
-                         destination: URL(string: "https://dayoneapp.com/guides/day-one-for-mac/command-line-interface-cli/")!)
-                        .font(.footnote)
-                }
-            }
-        } header: {
-            Text("Day One")
-        } footer: {
-            note("Keep the Day One app running during the import: the app is what moves staged media into the entries.")
         }
     }
 
