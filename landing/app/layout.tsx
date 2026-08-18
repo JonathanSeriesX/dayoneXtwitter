@@ -21,6 +21,19 @@ export const metadata: Metadata = {
   title: "Twixodus",
   description,
   robots: { index: true, follow: true },
+  /* Tab icons are the real Icon Composer render (squircle and material baked
+     in, since nothing masks a favicon). apple-touch-icon is deliberately the
+     flat full-bleed square instead — iOS applies its own mask and gloss, so a
+     pre-rounded, pre-shadowed image would get double-treated. favicon.ico is
+     absent here on purpose: it has to answer /favicon.ico at the origin root,
+     so it sits in public/ rather than R2. */
+  icons: {
+    icon: [
+      { url: "https://r2.evgenii.org/twixodus/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "https://r2.evgenii.org/twixodus/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: { url: "https://r2.evgenii.org/twixodus/apple-touch-icon.png", sizes: "180x180" },
+  },
   openGraph: {
     title: "Twixodus",
     description,
@@ -29,13 +42,13 @@ export const metadata: Metadata = {
     type: "website",
     url,
     images: [
-      { url: "/pics/twatter.jpg", width: 637, height: 637, alt: "Twixodus" },
+      { url: "https://r2.evgenii.org/twixodus/twatter.jpg", width: 637, height: 637, alt: "Twixodus" },
     ],
   },
   twitter: {
     card: "summary",
     creator: "@JonathanSeriesX",
-    images: ["/pics/twatter.jpg"],
+    images: ["https://r2.evgenii.org/twixodus/twatter.jpg"],
   },
 };
 

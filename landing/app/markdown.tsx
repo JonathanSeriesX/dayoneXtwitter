@@ -82,13 +82,18 @@ const components: Components = {
     if (!className?.includes("language-")) {
       const copyable = source.length >= COPYABLE_TOKEN && !source.includes(" ");
       return (
-        <span className={copyable ? "mono select-all" : "mono"}>{children}</span>
+        <span className={copyable ? "mono select-all" : "mono"}>
+          {children}
+        </span>
       );
     }
     /* `# comment` lines are labels for the reader, not part of the command:
        they render muted and the copy button leaves them behind. */
     const lines = source.replace(/\n$/, "").split("\n");
-    const command = lines.filter((line) => !isComment(line)).join("\n").trim();
+    const command = lines
+      .filter((line) => !isComment(line))
+      .join("\n")
+      .trim();
     return (
       <div className="code-block">
         <pre className="code-card">
@@ -110,13 +115,13 @@ const components: Components = {
     );
   },
 
-  /* ![alt](pics/shot.avif) — served straight from public/, no registration
+  /* ![alt](https://r2.../shot.avif) — absolute R2 URLs, no registration
      anywhere. The screenshots carry their own rounded corners, margin and drop
      shadow, so .shot draws no frame of its own. Plain <img> rather than
      next/image: with `images.unoptimized` there is nothing to optimize, and
      the static site can't know an AVIF's dimensions at build time anyway. */
   // eslint-disable-next-line @next/next/no-img-element
-  img: ({ src, alt }) => <img src={`/${src}`} alt={alt} loading="lazy" className="shot" />,
+  img: ({ src, alt }) => <img src={src} alt={alt} className="shot" />,
 };
 
 /* react-markdown defends against javascript: URLs by blanking every scheme it

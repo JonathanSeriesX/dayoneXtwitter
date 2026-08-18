@@ -1,8 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import twatterShot from "@/public/pics/twatter.jpg";
-
 import { intro, sections } from "./content";
 import { DownloadIcon, GitHubIcon } from "./icons";
 import { Markdown } from "./markdown";
@@ -63,7 +61,7 @@ export default function Page() {
       <header className="hero flow-root">
         <div className="hero-shot">
           <Image
-            src={twatterShot}
+            src="https://r2.evgenii.org/twixodus/twatter.jpg"
             alt="The bird, freed"
             fill
             sizes="216px"

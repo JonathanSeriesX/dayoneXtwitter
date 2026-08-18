@@ -12,7 +12,7 @@ Everything the site says lives in this file. Plain Markdown, no JSX — see
                                  `# comment` lines render muted and don't copy
     > quote                      dashed callout box
     ### Heading                  a named block inside a section, with a rule above it
-    ![alt](pics/shot.avif)       screenshot, served straight from public/pics
+    ![alt](https://r2.../shot.avif)  screenshot, served from R2
 
 ---
 
@@ -31,7 +31,7 @@ By importing your Twitter archive into Day One, you can:
   - Easily purge any unwanted
     [kompromat](https://en.wikipedia.org/wiki/Kompromat) from your old tweets
 
-![A thread combined into a single Day One entry](pics/threads.avif)
+![A thread combined into a single Day One entry](https://r2.evgenii.org/twixodus/threads.avif)
 
 ## What's so good about it?
 
@@ -46,7 +46,7 @@ By importing your Twitter archive into Day One, you can:
 - Titles your entries with a local LLM via [Ollama](https://ollama.com) —
   “Wrote about Formula 1”, “Expressed frustration at airport security”, etc.
 
-![Twitter replies imported into Day One](pics/replies.avif)
+![Twitter replies imported into Day One](https://r2.evgenii.org/twixodus/replies.avif)
 
 ## Preparation {one-time}
 
@@ -87,7 +87,7 @@ Then:
    ollama serve
    ```
 
-![Twitter threads titled with an LLM](pics/llm_titles.avif)
+![Twitter threads titled with an LLM](https://r2.evgenii.org/twixodus/llm_titles.avif)
 
 Note: when the model can't tell what a tweet is about, the title stays a plain
 “Tweeted”. Delete the model afterwards to
