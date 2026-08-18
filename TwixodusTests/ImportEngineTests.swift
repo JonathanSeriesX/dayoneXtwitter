@@ -101,6 +101,73 @@ final class ImportEngineTests: XCTestCase {
 
     private var ledger: ImportLedger { ImportLedger(fileURL: ledgerURL) }
 
+    /// Puts IDs into the ledger as if a previous run had imported them.
+    private func seedLedger(_ ids: [String]) {
+        var seen = Set<String>()
+        for id in ids {
+            ledger.rememberProcessed(tweetId: id, reimportMarker: nil, processedIDs: &seen)
+        }
+    }
+
+    // MARK: - Grown threads on the resume boundary
+
+    /// The archive-to-archive scenario: last year's import covered through the
+    /// archive's newest tweet (Jan 17, 15:59); the thread rooted there gained a
+    /// tweet afterwards. The resume range starts on the boundary day (Jan 17),
+    /// so the root is in range AND in the ledger — without the coverage point
+    /// it would be skipped and the new tail lost. With it, the thread goes
+    /// through the full re-import + delete-the-duplicate flow.
+    func testGrownThreadOnResumeBoundaryIsReimportedNotSkipped() async {
+        let root = makeTweet("10", date: PipelineDates.date(2026, 1, 17, 15, 59, 0))
+        let tail = makeTweet(
+            "11", date: PipelineDates.date(2026, 1, 18, 9, 0, 0), replyToId: "10")
+        seedLedger(["10"])
+
+        var config = makeConfig()
+        config.startDate = PipelineDates.date(2026, 1, 17)
+        config.endDate = PipelineDates.date(2026, 12, 31, 23, 59, 59)
+        config.lastCoveredThrough = PipelineDates.date(2026, 1, 17, 15, 59, 0)
+
+        let poster = MockPoster()
+        let engine = makeEngine(threadsConfig: config, poster: poster)
+        let result = await engine.run(threads: [[root, tail]])
+
+        XCTAssertEqual(result.importedCount, 1)
+        XCTAssertEqual(result.skippedAlreadyImported, 0)
+        XCTAssertTrue(ledger.loadProcessedIDs().contains("10+11"))
+        // The re-import comes with the delete-the-older-copy reminder, and the
+        // report knows the old copy held the 1 tweet the last import covered.
+        XCTAssertNotNil(result.reimportReport)
+        XCTAssertTrue(result.reimportReport?.contains("≈1 tweets") ?? false)
+
+        // A second run over the same range: the extension marker skips it.
+        let again = await makeEngine(threadsConfig: config, poster: poster)
+            .run(threads: [[root, tail]])
+        XCTAssertEqual(again.importedCount, 0)
+        XCTAssertEqual(again.skippedAlreadyImported, 1)
+    }
+
+    /// The counterpart: a thread that did NOT grow past the coverage point is
+    /// skipped as before, even though its root is in range and in the ledger.
+    func testUnchangedThreadOnResumeBoundaryIsStillSkipped() async {
+        let root = makeTweet("10", date: PipelineDates.date(2026, 1, 17, 15, 59, 0))
+        seedLedger(["10"])
+
+        var config = makeConfig()
+        config.startDate = PipelineDates.date(2026, 1, 17)
+        config.endDate = PipelineDates.date(2026, 12, 31, 23, 59, 59)
+        config.lastCoveredThrough = PipelineDates.date(2026, 1, 17, 15, 59, 0)
+
+        let poster = MockPoster()
+        let result = await makeEngine(threadsConfig: config, poster: poster)
+            .run(threads: [[root]])
+
+        XCTAssertEqual(result.importedCount, 0)
+        XCTAssertEqual(result.skippedAlreadyImported, 1)
+        XCTAssertTrue(poster.calls.isEmpty)
+        XCTAssertNil(result.reimportReport)
+    }
+
     // MARK: - The happy path
 
     func testImportsRecordLedgerAndFinishProgressAt100Percent() async {

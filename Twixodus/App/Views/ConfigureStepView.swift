@@ -130,7 +130,7 @@ struct ConfigureStepView: View {
             }
             DatePicker("From", selection: $settings.startDate, displayedComponents: .date)
             DatePicker("Until", selection: $settings.endDate, displayedComponents: .date)
-            Text("Only threads that started between these days (inclusive) are imported. Threads that started earlier but gained tweets inside the range are re-imported in full — you'll get a reminder to delete the older, shorter copies.")
+            Text("Only threads that started between these days (inclusive) are imported. Threads that gained new tweets since an earlier import — whether they started before the range or inside it — are re-imported in full, with a reminder to delete the older, shorter copies.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

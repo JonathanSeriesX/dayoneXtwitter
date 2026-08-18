@@ -51,11 +51,83 @@ final class ThreadSelectionTests: XCTestCase {
         XCTAssertEqual(inRange.count, 2)
     }
 
+    // MARK: - Grown-thread detection (in-range root, already imported)
+
+    /// The resume scenario: the last import covered through July 1 15:59; the
+    /// new range starts on July 1. A thread rooted at 15:59 that gained a
+    /// tweet after the coverage point must get the full re-import treatment.
+    func testProcessedInRangeThreadGrownPastCoverageIsExtended() {
+        let covered = PipelineDates.date(2025, 7, 1, 15, 59, 0)
+        let t = thread(root: covered, replies: [PipelineDates.date(2025, 7, 2)])
+        let (inRange, extended) = ThreadSelection.partitionThreadsByDate(
+            [t], startDate: start, endDate: end,
+            processedIDs: ["1"], coveredThrough: covered)
+        XCTAssertTrue(inRange.isEmpty)
+        XCTAssertEqual(extended.count, 1)
+    }
+
+    /// A brand-new thread on the overlap day (posted after the old archive was
+    /// exported) is an ordinary import — no re-import, no delete reminder.
+    func testUnprocessedThreadPastCoverageStaysInRange() {
+        let covered = PipelineDates.date(2025, 7, 1, 15, 59, 0)
+        let t = thread(
+            root: PipelineDates.date(2025, 7, 1, 20, 0, 0),
+            replies: [PipelineDates.date(2025, 7, 2)])
+        let (inRange, extended) = ThreadSelection.partitionThreadsByDate(
+            [t], startDate: start, endDate: end,
+            processedIDs: [], coveredThrough: covered)
+        XCTAssertEqual(inRange.count, 1)
+        XCTAssertTrue(extended.isEmpty)
+    }
+
+    func testProcessedThreadUnchangedSinceCoverageStaysInRange() {
+        let covered = PipelineDates.date(2025, 7, 1, 15, 59, 0)
+        let t = thread(root: PipelineDates.date(2025, 7, 1), replies: [covered])
+        let (inRange, extended) = ThreadSelection.partitionThreadsByDate(
+            [t], startDate: start, endDate: end,
+            processedIDs: ["1"], coveredThrough: covered)
+        XCTAssertEqual(inRange.count, 1)
+        XCTAssertTrue(extended.isEmpty)
+    }
+
+    /// Growth beyond the range's end doesn't belong to this run — a later run
+    /// whose range reaches it will catch the thread as a classic extension.
+    func testGrowthAfterEndDateDoesNotTriggerReimport() {
+        let covered = PipelineDates.date(2025, 7, 1, 15, 59, 0)
+        let t = thread(root: PipelineDates.date(2025, 7, 1), replies: [PipelineDates.date(2026, 3, 1)])
+        let (inRange, extended) = ThreadSelection.partitionThreadsByDate(
+            [t], startDate: start, endDate: end,
+            processedIDs: ["1"], coveredThrough: covered)
+        XCTAssertEqual(inRange.count, 1)
+        XCTAssertTrue(extended.isEmpty)
+    }
+
+    func testWithoutCoveragePointBehavesAsBefore() {
+        let t = thread(root: PipelineDates.date(2025, 7, 1), replies: [PipelineDates.date(2025, 8, 1)])
+        let (inRange, extended) = ThreadSelection.partitionThreadsByDate(
+            [t], startDate: start, endDate: end, processedIDs: ["1"])
+        XCTAssertEqual(inRange.count, 1)
+        XCTAssertTrue(extended.isEmpty)
+    }
+
     func testCountTweetsBefore() {
         let t = thread(
             root: PipelineDates.date(2024, 1, 1),
             replies: [PipelineDates.date(2024, 6, 1), PipelineDates.date(2025, 8, 1)])
         XCTAssertEqual(ThreadSelection.countTweetsBefore(t, startDate: start), 2)
+    }
+
+    /// A completed import always took the whole thread as the archive had it,
+    /// so the previous copy can hold more than "tweets before the range".
+    func testCountTweetsBeforeUsesCoveragePointWhenLater() {
+        let covered = PipelineDates.date(2025, 7, 1, 15, 59, 0)
+        let t = thread(root: covered, replies: [PipelineDates.date(2025, 7, 2)])
+        // Without the coverage point the old copy would look empty (root is
+        // not before the range start)…
+        XCTAssertEqual(ThreadSelection.countTweetsBefore(t, startDate: start), 0)
+        // …with it, the root is correctly counted as already imported.
+        XCTAssertEqual(
+            ThreadSelection.countTweetsBefore(t, startDate: start, coveredThrough: covered), 1)
     }
 
     func testTweetURL() {
@@ -72,12 +144,12 @@ final class ThreadSelectionTests: XCTestCase {
             tweetId: "42", title: "Wrote a thread", category: "Wrote a thread",
             journal: "Tweets", date: PipelineDates.date(2024, 1, 1, 15, 30),
             tweetCount: 7, previousTweetCount: 4)
-        let report = ThreadSelection.formatReimportReport([entry], startDate: start, username: "me")
+        let report = ThreadSelection.formatReimportReport([entry], username: "me")
 
         XCTAssertTrue(report.contains("1 thread(s) were re-imported in full"))
         XCTAssertTrue(report.contains("01 January 2024, 15:30 — “Wrote a thread”"))
         XCTAssertTrue(report.contains("Journal: Tweets"))
-        XCTAssertTrue(report.contains("≈4 tweets (those posted before 29 June 2025)"))
+        XCTAssertTrue(report.contains("≈4 tweets (the shorter, previously imported copy)"))
         XCTAssertTrue(report.contains("New entry: 7 tweets"))
         XCTAssertTrue(report.contains("https://twitter.com/me/status/42"))
     }
@@ -86,7 +158,7 @@ final class ThreadSelectionTests: XCTestCase {
         let entry = ImportedEntry(
             tweetId: "42", title: "T", category: "Tweeted", journal: "Tweets",
             date: PipelineDates.date(2024, 1, 1), tweetCount: 3)
-        let report = ThreadSelection.formatReimportReport([entry], startDate: start, username: nil)
+        let report = ThreadSelection.formatReimportReport([entry], username: nil)
         XCTAssertTrue(report.contains("the shorter, previously imported copy"))
         XCTAssertTrue(report.contains("https://twitter.com/i/web/status/42"))
     }

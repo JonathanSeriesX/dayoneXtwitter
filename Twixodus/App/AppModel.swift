@@ -145,7 +145,10 @@ final class AppModel: ObservableObject {
     func startImport() {
         guard let archive, let binary = dayOneBinary, importTask == nil else { return }
 
-        let config = settings.buildConfig()
+        var config = settings.buildConfig()
+        // Lets the run spot already-imported threads that grew since the last
+        // import — including ones rooted on the resume range's overlap day.
+        config.lastCoveredThrough = lastCoveredDate
         let context = ThreadCategorizer.Context(
             ownTweetIDs: archive.ownTweetIDs,
             currentUsername: config.currentUsername

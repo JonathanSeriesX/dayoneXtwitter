@@ -236,6 +236,10 @@ public struct ImportConfig {
     /// (naive UTC, same semantics as the Python config dates).
     public var startDate: Date
     public var endDate: Date
+    /// How far the previous completed import of this account reached (from
+    /// ImportHistory), or nil when unknown. Lets the run spot threads that
+    /// were imported whole but gained tweets since.
+    public var lastCoveredThrough: Date?
 
     public var processTitlesWithLLM: Bool
     public var llmTitlesForSingleTweets: Bool
@@ -257,6 +261,7 @@ public struct ImportConfig {
         useXcancelLinks: Bool = false,
         startDate: Date = PipelineDates.date(2006, 3, 21),
         endDate: Date = PipelineDates.date(2069, 4, 20),
+        lastCoveredThrough: Date? = nil,
         processTitlesWithLLM: Bool = false,
         llmTitlesForSingleTweets: Bool = true,
         llmMaxImages: Int = 26,
@@ -275,6 +280,7 @@ public struct ImportConfig {
         self.useXcancelLinks = useXcancelLinks
         self.startDate = startDate
         self.endDate = endDate
+        self.lastCoveredThrough = lastCoveredThrough
         self.processTitlesWithLLM = processTitlesWithLLM
         self.llmTitlesForSingleTweets = llmTitlesForSingleTweets
         self.llmMaxImages = llmMaxImages

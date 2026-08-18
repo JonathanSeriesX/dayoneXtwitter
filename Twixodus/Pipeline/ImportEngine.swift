@@ -150,13 +150,14 @@ public final class ImportEngine {
         // Threads that started inside the range are imported normally; older
         // threads that were extended within it need a full re-import.
         let (inRange, extended) = ThreadSelection.partitionThreadsByDate(
-            threads, startDate: config.startDate, endDate: config.endDate
+            threads, startDate: config.startDate, endDate: config.endDate,
+            processedIDs: processedIDs, coveredThrough: config.lastCoveredThrough
         )
         if threads.count != inRange.count {
             log("Filtered down to \(inRange.count) threads within the specified date range.")
         }
         if !extended.isEmpty {
-            log("\(extended.count) older thread(s) were extended within this date range "
+            log("\(extended.count) previously imported thread(s) gained new tweets "
                 + "and will be re-imported in full.")
         }
 
@@ -205,7 +206,8 @@ public final class ImportEngine {
                 callbacks.progress(result.importedCount, progressTotal)
                 if planned.isReimport {
                     entry.previousTweetCount = ThreadSelection.countTweetsBefore(
-                        planned.thread, startDate: config.startDate)
+                        planned.thread, startDate: config.startDate,
+                        coveredThrough: config.lastCoveredThrough)
                     reimported.append(entry)
                 }
             case .skippedAlreadyImported:
@@ -224,7 +226,8 @@ public final class ImportEngine {
         // ---- Step 7: remind the user to delete re-imported duplicates -----
         if !reimported.isEmpty {
             result.reimportReport = ThreadSelection.formatReimportReport(
-                reimported, startDate: config.startDate, username: config.currentUsername
+                reimported, username: config.currentUsername,
+                linkHost: config.useXcancelLinks ? XcancelLinks.host : "twitter.com"
             )
         }
 
