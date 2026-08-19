@@ -16,7 +16,7 @@ Everything the site says lives in this file. Plain Markdown, no JSX — see
 
 ---
 
-The **ultimate** tool to seamlessly import your Twitter archive into the
+The **ultimate** tool to perfectly import your Twitter archive into the
 [Day One](https://dayoneapp.com) journaling app.
 
 ## What for?
@@ -114,11 +114,9 @@ ollama rm qwen3.5:9b-mlx
 
 If you found this useful, please consider supporting me:
 
-- [Buy me a coffee](https://coff.ee/jonathunky)
-- USDT TRC20: `TKa6wmqpLvMQwacU1wnPgFWZHFaDRV9jFs`
+- [Buy me a nice latte](https://buymeacoffee.com/jonathanseriesx)
 - [Revolut](https://revolut.me/evgenii69)
-
-I have to notarise this application under my friend's Apple ID, because I don't have access to Apple Developer Program; your donations could change that!
+- USDT TRC20: `TKa6wmqpLvMQwacU1wnPgFWZHFaDRV9jFs`
 
 <!-- Parked, not deleted — the README still carries both lists. Move either
      heading above this comment to put it back on the page.

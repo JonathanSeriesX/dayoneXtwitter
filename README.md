@@ -1,6 +1,6 @@
 # Twixodus
 
-The **ultimate** tool to seamlessly import your Twitter archive into the [Day One journaling app](https://dayoneapp.com).
+The **ultimate** tool to import your Twitter archive into the [Day One](https://dayoneapp.com) journaling app.
 
 Works on macOS Sequoia or newer.
 
@@ -8,9 +8,9 @@ Works on macOS Sequoia or newer.
 
 If you found this useful, please consider supporting me:
 
-- [Buy me a nice latte](https://ko-fi.com/jonathanx64)
-- USDT TRC20: `TNhgaQw2n9WxsddLhaXnx1HvEEYsScmsrW`
+- [Buy me a nice latte](https://buymeacoffee.com/jonathanseriesx)
 - [Revolut](https://revolut.me/evgenii69)
+- USDT TRC20: `TNhgaQw2n9WxsddLhaXnx1HvEEYsScmsrW`
 
 I have to notarise this application under my friend's Apple ID, because I don't have access to Apple Developer Program; your donations could change that!
 
