@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      basiclightbox:
+        specifier: ^5.0.4
+        version: 5.0.4
       next:
         specifier: ^16.3.1
         version: 16.3.1(@babel/core@7.29.7)(@types/node@26.2.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -33,6 +36,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
+      '@types/basiclightbox':
+        specifier: ^5.0.4
+        version: 5.0.4
       '@types/hast':
         specifier: ^3.0.5
         version: 3.0.5
@@ -571,6 +577,9 @@ packages:
   '@tybys/wasm-util@0.10.3':
     resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
+  '@types/basiclightbox@5.0.4':
+    resolution: {integrity: sha512-tKP45Qm1ZQ5sONdV6MvrPk4KP8gxjTWM35V8G5K0tpof3AwKdA5N41/vLQHwdjQBu5FXzlaPBVQr0h6xqRL+Sw==}
+
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
 
@@ -879,6 +888,9 @@ packages:
     resolution: {integrity: sha512-JyJ954WzuIR8/FFzX0o5krdSTrBAkcCSRfWSleRsIHSWV+cZe2FI1PKggVkFke1hBldRs+LRxUczzE9iPmgZww==}
     engines: {node: '>=6.0.0'}
     hasBin: true
+
+  basiclightbox@5.0.4:
+    resolution: {integrity: sha512-EsuNWmfcFXWZOe0txKXsllYOC7bDpoaVLc4HHHlYKB/roymlZs+FBdLUU6rx2yPpnJZhulwheKdPjqr2k0+NGQ==}
 
   brace-expansion@1.1.18:
     resolution: {integrity: sha512-Edep/X9fGqVNmzKBVsDYIOtD+z1tuezV70LBjdCst9Tqu76lsnvRiZ6oTic1n+/BIwX6QDGAO94PN4N2SADvtw==}
@@ -2713,6 +2725,8 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  '@types/basiclightbox@5.0.4': {}
+
   '@types/debug@4.1.13':
     dependencies:
       '@types/ms': 2.1.0
@@ -3019,6 +3033,8 @@ snapshots:
   balanced-match@4.0.4: {}
 
   baseline-browser-mapping@2.11.14: {}
+
+  basiclightbox@5.0.4: {}
 
   brace-expansion@1.1.18:
     dependencies:

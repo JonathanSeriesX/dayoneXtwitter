@@ -5,6 +5,7 @@ import { intro, sections } from "./content";
 import { DownloadIcon, GitHubIcon } from "./icons";
 import { Markdown } from "./markdown";
 import { ThemeSwitch } from "./theme-switch";
+import { ImageZoom } from "./zoom";
 
 const repo = "https://github.com/JonathanSeriesX/twixodus";
 /* Always the newest release's zip — release.yml uploads a stable-named copy of
@@ -114,6 +115,7 @@ export default function Page() {
         </p>
         <ThemeSwitch />
       </footer>
+      <ImageZoom />
     </div>
   );
 }

@@ -104,7 +104,7 @@ jobs:
         env:
           CODESIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
           BUILD_NUMBER: ${{ github.run_number }}
-        run: scripts/build-release.sh "${{ steps.version.outputs.version }}"
+        run: .github/build-release.sh "${{ steps.version.outputs.version }}"
 
       - name: Notarize & staple (if configured)
         env:

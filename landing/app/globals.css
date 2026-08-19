@@ -480,6 +480,15 @@ body {
     width: 100%;
     height: auto;
     margin-top: 16px;
+    cursor: zoom-in;
+  }
+
+  /* Sizing is basiclightbox's own (95% of the viewport, aspect kept) — its
+     stylesheet is unlayered, so it beats anything in here no matter how
+     specific. Only the bits it doesn't set are worth overriding. */
+  .basicLightbox.shot-zoom img {
+    border-radius: 10px;
+    cursor: zoom-out;
   }
 
   /* ---- terminal snippet, with its copy button parked in the corner ---- */

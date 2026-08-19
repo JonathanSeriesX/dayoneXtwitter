@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds a distributable Twixodus.app and zips it into dist/Twixodus.zip.
 #
-#   scripts/build-release.sh [version]
+#   .github/build-release.sh [version]
 #
 # By default the app is ad-hoc signed. Set CODESIGN_IDENTITY to a
 # "Developer ID Application: ..." identity to sign for real distribution
