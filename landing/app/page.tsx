@@ -77,7 +77,7 @@ export default function Page() {
         <div className="cta-row">
           <Link className="cta" href={download}>
             <DownloadIcon />
-            Download Twixodus.zip
+            Download Twixodus.app
           </Link>
           <Link
             className="cta ghost"

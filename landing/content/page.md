@@ -110,6 +110,8 @@ ollama rm qwen3.5:9b-mlx
 4. **Keep the Day One app running** during the import: it's what moves the staged
    media into the entries.
 
+![Twixodus configuration screen](https://r2.evgenii.org/twixodus/config_b.avif)
+
 ## 🥺👉👈
 
 If you found this useful, please consider supporting me:
